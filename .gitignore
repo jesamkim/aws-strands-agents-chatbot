@@ -1,0 +1,44 @@
+# Amazon Q 관련 파일
+.amazonq/
+
+# 개발 계획 및 테스트 문서
+development_plan.md
+kb_test.md
+output.md
+plan.md
+
+# 로그 파일
+*.log
+streamlit.log
+
+# 테스트 파일
+test_*.py
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 가상환경
+venv/
+env/
+ENV/
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 환경 변수
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

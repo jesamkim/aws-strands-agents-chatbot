@@ -219,6 +219,63 @@ http://localhost:8501
 ```
 
 접속하면 위 스크린샷과 같은 직관적인 웹 인터페이스를 확인할 수 있습니다:
+
+## 🚀 AWS 클라우드 배포 (CDK)
+
+프로덕션 환경을 위한 AWS 클라우드 배포는 CDK(Cloud Development Kit) 배포 옵션을 사용하세요:
+
+### 빠른 배포
+```bash
+cd CDK
+./deploy.sh  # Linux/macOS
+# 또는
+deploy.bat   # Windows
+```
+
+### 수동 배포 단계
+```bash
+cd CDK
+
+# 의존성 설치
+pip install -r requirements.txt
+
+# CDK 부트스트랩 (최초 1회만)
+cdk bootstrap
+
+# 배포 미리보기
+cdk diff
+
+# AWS에 배포
+cdk deploy
+```
+
+### 배포 아키텍처
+- **ECS Fargate**: 컨테이너화된 Streamlit 애플리케이션
+- **Application Load Balancer**: 트래픽 분산 및 헬스체크
+- **CloudFront**: 보안 헤더가 적용된 글로벌 CDN
+- **VPC**: 퍼블릭/프라이빗 서브넷이 있는 격리된 네트워크 환경
+
+### 배포 후 설정
+배포가 성공적으로 완료되면 CloudFront URL을 받게 됩니다:
+```
+https://d1234567890abc.cloudfront.net
+```
+
+자세한 배포 지침, 문제 해결 및 구성 옵션은 [CDK/README.md](./CDK/README.md)를 참조하세요.
+
+### 로컬 Docker 테스트
+배포 전에 컨테이너화된 버전을 로컬에서 테스트:
+```bash
+cd CDK
+./test-local.sh
+```
+
+### 리소스 정리
+배포된 모든 AWS 리소스를 제거하려면:
+```bash
+cd CDK
+./cleanup.sh
+```
 - 좌측 사이드바: 모델 설정 및 권장 조합 선택
 - 메인 영역: 채팅 인터페이스 및 실시간 ReAct 단계 표시
 - Citation 기능: 답변에 자동으로 포함되는 인용 및 참조 목록

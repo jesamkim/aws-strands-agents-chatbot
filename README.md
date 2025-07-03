@@ -219,6 +219,63 @@ http://localhost:8501
 ```
 
 Upon access, you'll see an intuitive web interface as shown in the screenshot above:
+
+## 🚀 AWS Cloud Deployment (CDK)
+
+For production deployment to AWS cloud, use the CDK (Cloud Development Kit) deployment option:
+
+### Quick Deployment
+```bash
+cd CDK
+./deploy.sh  # Linux/macOS
+# or
+deploy.bat   # Windows
+```
+
+### Manual Deployment Steps
+```bash
+cd CDK
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Bootstrap CDK (first time only)
+cdk bootstrap
+
+# Preview deployment
+cdk diff
+
+# Deploy to AWS
+cdk deploy
+```
+
+### Deployment Architecture
+- **ECS Fargate**: Containerized Streamlit application
+- **Application Load Balancer**: Traffic distribution and health checks
+- **CloudFront**: Global CDN with security headers
+- **VPC**: Isolated network environment with public/private subnets
+
+### Post-Deployment
+After successful deployment, you'll receive a CloudFront URL:
+```
+https://d1234567890abc.cloudfront.net
+```
+
+For detailed deployment instructions, troubleshooting, and configuration options, see [CDK/README.md](./CDK/README.md).
+
+### Local Docker Testing
+Test the containerized version locally before deployment:
+```bash
+cd CDK
+./test-local.sh
+```
+
+### Resource Cleanup
+To remove all deployed AWS resources:
+```bash
+cd CDK
+./cleanup.sh
+```
 - Left sidebar: Model configuration and recommended combination selection
 - Main area: Chat interface with real-time ReAct step display
 - Citation feature: Automatic references and source listings in answers

@@ -7,6 +7,14 @@ kb_test.md
 output.md
 plan.md
 
+# CDK 관련 파일
+CDK/cdk.out/
+CDK/venv/
+CDK/**/__pycache__/
+CDK/**/*.pyc
+CDK/.env
+CDK/docker_app/.env
+
 # 로그 파일
 *.log
 streamlit.log
@@ -42,3 +50,6 @@ ENV/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# git
+.gitignore

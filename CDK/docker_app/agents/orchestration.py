@@ -255,7 +255,7 @@ Knowledge Base가 사용 불가능한 경우 needs_kb_search는 false로 설정�
             common_patterns = [
                 "절차", "방법", "과정", "규정", "정책", "지침",
                 "투자", "계약", "승인", "품의", "결재",
-                "포스코", "회사", "조직", "부서"
+                "회사", "조직", "부서"
             ]
             
             found_keywords = []

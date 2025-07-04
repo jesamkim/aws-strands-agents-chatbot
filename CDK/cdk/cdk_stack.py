@@ -25,11 +25,27 @@ class CdkStack(Stack):
         # Define prefix that will be used in some resource names
         prefix = Config.STACK_NAME
 
-        # Use existing VPC to avoid hitting VPC limits
-        vpc = ec2.Vpc.from_lookup(
+        # Create new VPC for the application
+        vpc = ec2.Vpc(
             self,
             f"{prefix}AppVpc",
-            vpc_id="vpc-0ac23ba62f6156856"  # aws-strands-react-chatbot-react-vpc
+            vpc_name=f"{prefix}-react-vpc",
+            ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
+            max_azs=2,
+            subnet_configuration=[
+                ec2.SubnetConfiguration(
+                    name="Public",
+                    subnet_type=ec2.SubnetType.PUBLIC,
+                    cidr_mask=18,
+                ),
+                ec2.SubnetConfiguration(
+                    name="Private",
+                    subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
+                    cidr_mask=18,
+                ),
+            ],
+            enable_dns_hostnames=True,
+            enable_dns_support=True,
         )
 
         ecs_security_group = ec2.SecurityGroup(

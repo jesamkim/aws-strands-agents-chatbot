@@ -312,7 +312,6 @@ procedures, and policies. Speak in Korean"
 Configure your Amazon Bedrock Knowledge Base:
 
 - **KB ID**: Enter your Knowledge Base ID
-- **KB Description**: Describe your KB content (e.g., "Company HR and benefits information")
 - **Search Type**: Hybrid (semantic + keyword)
 - **Max Results**: 5 chunks per search
 - **Auto-retry**: Up to 5 attempts with alternative keywords

@@ -180,8 +180,10 @@ sequenceDiagram
 ### AWS Requirements
 - **AWS Account** and credential configuration
 - **Amazon Bedrock** model access permissions
-  - Claude 3.5 Haiku (required)
-  - Claude 3.5 Sonnet, Nova Lite/Micro (recommended)
+  - **Claude Models**: Claude 4 Sonnet, Claude 3.7 Sonnet, Claude 3.5 Sonnet v2, Claude 3.5 Haiku
+  - **Nova Models**: Nova Lite, Nova Micro
+  - **Minimum Required**: Claude 3.5 Haiku (for basic functionality)
+  - **Recommended**: Enable all models for optimal performance
 - **Amazon Bedrock Knowledge Base** (optional)
   - If you have created a KB, enter the KB_ID and description in the chatbot
 
@@ -189,8 +191,8 @@ sequenceDiagram
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/jesamkim/aws-bedrock-react-chatbot.git
-cd aws-bedrock-react-chatbot
+git clone https://github.com/jesamkim/aws-strands-agents-chatbot.git
+cd aws-strands-agents-chatbot
 ```
 
 ### 2. Create and Activate Python Virtual Environment
@@ -449,7 +451,25 @@ aws configure get region
 ```
 
 #### 2. Model Access Permission Errors
-- Go to AWS Console → Bedrock → Model access to enable models
+**Important**: You must enable model access in AWS Bedrock console before using the chatbot.
+
+**Required Models to Enable:**
+- **Claude 4 Sonnet** (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Claude 3.7 Sonnet** (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
+- **Claude 3.5 Sonnet v2** (`us.anthropic.claude-3-5-sonnet-20241022-v2:0`)
+- **Claude 3.5 Haiku** (`us.anthropic.claude-3-5-haiku-20241022-v1:0`)
+- **Nova Lite** (`us.amazon.nova-lite-v1:0`)
+- **Nova Micro** (`us.amazon.nova-micro-v1:0`)
+
+**How to Enable Model Access:**
+1. Go to [AWS Console](https://console.aws.amazon.com/) → Amazon Bedrock
+2. Navigate to **Model access** in the left sidebar
+3. Click **Request model access** or **Manage model access**
+4. Select all the required models listed above
+5. Click **Request model access** and wait for approval (usually instant for most models)
+6. Verify all models show "Access granted" status
+
+**Note**: Some models may require additional approval or have usage restrictions based on your AWS account type.
 
 #### 3. Knowledge Base Connection Issues
 ```bash

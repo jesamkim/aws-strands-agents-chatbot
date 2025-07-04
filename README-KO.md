@@ -173,8 +173,10 @@ sequenceDiagram
 ### AWS 요구사항
 - **AWS 계정** 및 자격 증명 구성
 - **Amazon Bedrock** 모델 액세스 권한
-  - Claude 3.5 Haiku (필수)
-  - Claude 3.5 Sonnet, Nova Lite/Micro (권장)
+  - **Claude 모델**: Claude 4 Sonnet, Claude 3.7 Sonnet, Claude 3.5 Sonnet v2, Claude 3.5 Haiku
+  - **Nova 모델**: Nova Lite, Nova Micro
+  - **최소 필수**: Claude 3.5 Haiku (기본 기능용)
+  - **권장**: 최적 성능을 위해 모든 모델 활성화
 - **Amazon Bedrock Knowledge Base** (선택사항)
   - KB를 생성한 경우 챗봇에 KB_ID와 설명을 입력
 
@@ -182,8 +184,8 @@ sequenceDiagram
 
 ### 1. 저장소 복제
 ```bash
-git clone https://github.com/jesamkim/aws-bedrock-react-chatbot.git
-cd aws-bedrock-react-chatbot
+git clone https://github.com/jesamkim/aws-strands-agents-chatbot.git
+cd aws-strands-agents-chatbot
 ```
 
 ### 2. Python 가상 환경 생성 및 활성화
@@ -442,7 +444,25 @@ aws configure get region
 ```
 
 #### 2. 모델 액세스 권한 오류
-- AWS 콘솔 → Bedrock → 모델 액세스로 이동하여 모델 활성화
+**중요**: 챗봇을 사용하기 전에 AWS Bedrock 콘솔에서 모델 액세스를 활성화해야 합니다.
+
+**활성화해야 할 필수 모델:**
+- **Claude 4 Sonnet** (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Claude 3.7 Sonnet** (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
+- **Claude 3.5 Sonnet v2** (`us.anthropic.claude-3-5-sonnet-20241022-v2:0`)
+- **Claude 3.5 Haiku** (`us.anthropic.claude-3-5-haiku-20241022-v1:0`)
+- **Nova Lite** (`us.amazon.nova-lite-v1:0`)
+- **Nova Micro** (`us.amazon.nova-micro-v1:0`)
+
+**모델 액세스 활성화 방법:**
+1. [AWS 콘솔](https://console.aws.amazon.com/)로 이동 → Amazon Bedrock
+2. 왼쪽 사이드바에서 **모델 액세스** 클릭
+3. **모델 액세스 요청** 또는 **모델 액세스 관리** 클릭
+4. 위에 나열된 모든 필수 모델 선택
+5. **모델 액세스 요청** 클릭 후 승인 대기 (대부분 모델은 즉시 승인)
+6. 모든 모델이 "액세스 허용됨" 상태인지 확인
+
+**참고**: 일부 모델은 AWS 계정 유형에 따라 추가 승인이 필요하거나 사용 제한이 있을 수 있습니다.
 
 #### 3. Knowledge Base 연결 문제
 ```bash

@@ -11,7 +11,6 @@ A sophisticated chatbot implementation using the **ReAct (Reasoning and Acting) 
 
 ### 🧠 Advanced ReAct Pattern Implementation
 - **KB-Priority Orchestration**: Intelligent decision-making based on KB availability
-- **Conversation Continuity**: Natural follow-up question handling ("다음은?", "그럼?")
 - **Adaptive Retry Logic**: Up to 5 iterations with dynamic keyword generation
 - **Quality Assessment**: Intelligent search result evaluation with iteration-based criteria
 

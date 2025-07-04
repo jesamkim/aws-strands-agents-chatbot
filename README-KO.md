@@ -1,4 +1,4 @@
-# 🤖 AWS Strands Agents ReAct 챗봇
+# 🤖 AWS Bedrock ReAct 챗봇
 
 Amazon Bedrock과 Knowledge Base 통합을 통한 **ReAct (Reasoning and Acting) 패턴**을 사용한 정교한 챗봇 구현입니다. 이 프로젝트는 인용 지원, 대화 연속성, 지능적 재시도 메커니즘을 갖춘 고급 AI 에이전트 오케스트레이션을 보여줍니다.
 
@@ -182,8 +182,8 @@ sequenceDiagram
 
 ### 1. 저장소 복제
 ```bash
-git clone https://github.com/jesamkim/aws-strands-agents-chatbot.git
-cd aws-strands-agents-chatbot
+git clone https://github.com/jesamkim/aws-react-agents-with-kb.git
+cd aws-react-agents-with-kb
 ```
 
 ### 2. Python 가상 환경 생성 및 활성화
@@ -383,7 +383,7 @@ Amazon Bedrock Knowledge Base를 구성하세요:
 ## 📁 프로젝트 구조
 
 ```
-aws-strands-agents-chatbot/
+aws-bedrock-react-chatbot/
 ├── agents/
 │   ├── __init__.py
 │   ├── react_agent.py          # 안전 메커니즘이 있는 메인 ReAct 엔진
@@ -491,7 +491,6 @@ aws bedrock-agent get-knowledge-base --knowledge-base-id YOUR_KB_ID
 
 ## 🔗 참고 자료
 
-- [AWS Strands Agents 워크샵](https://catalog.us-east-1.prod.workshops.aws/workshops/33f099a6-45a2-47d7-9e3c-a23a6568821e/en-US)
 - [Amazon Bedrock 문서](https://docs.aws.amazon.com/bedrock/)
 - [Amazon Bedrock Knowledge Base](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html)
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)

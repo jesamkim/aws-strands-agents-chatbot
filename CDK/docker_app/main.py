@@ -1,5 +1,5 @@
 """
-AWS Strands Agents 기반 ReAct 챗봇 메인 애플리케이션
+AWS Bedrock 기반 ReAct 챗봇 메인 애플리케이션
 """
 
 import streamlit as st
@@ -26,7 +26,7 @@ def main():
     )
     
     # 메인 타이틀
-    st.title("🤖 AWS Strands Agents ReAct Chatbot")
+    st.title("🤖 AWS Bedrock ReAct Chatbot")
     st.markdown("---")
     
     # 사이드바 렌더링 및 설정 가져오기
@@ -47,7 +47,7 @@ def _render_footer():
     
     with col1:
         st.caption("🔧 **기술 스택**")
-        st.caption("• AWS Strands Agents")
+        st.caption("• Custom ReAct Pattern")
         st.caption("• Amazon Bedrock")
         st.caption("• Streamlit")
     

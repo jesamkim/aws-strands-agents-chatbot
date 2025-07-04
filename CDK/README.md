@@ -1,6 +1,6 @@
-# 🚀 AWS Strands Agents ReAct Chatbot - CDK Deployment
+# 🚀 AWS Bedrock ReAct Chatbot - CDK Deployment
 
-이 디렉토리는 AWS CDK를 사용하여 AWS Strands Agents ReAct Chatbot을 AWS 클라우드에 배포하기 위한 인프라 코드를 포함합니다.
+이 디렉토리는 AWS CDK를 사용하여 AWS Bedrock ReAct Chatbot을 AWS 클라우드에 배포하기 위한 인프라 코드를 포함합니다.
 
 ## 🏗️ 배포 아키텍처
 

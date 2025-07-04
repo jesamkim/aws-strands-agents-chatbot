@@ -489,28 +489,6 @@ aws bedrock-agent get-knowledge-base --knowledge-base-id YOUR_KB_ID
 - **Action**: Nova Micro (fastest search)
 - **Observation**: Claude 3.5 Haiku (fast analysis)
 
-#### Model Characteristics
-| Model | Performance | Cost | Recommended Use | Max Tokens |
-|-------|-------------|------|-----------------|------------|
-| Claude Sonnet 4 | Highest | Highest | Complex orchestration | 8,000 |
-| Claude 3.7 Sonnet | Very High | High | Advanced reasoning | 8,000 |
-| Claude 3.5 Sonnet v2 | High | Medium | Balanced performance | 8,000 |
-| Claude 3.5 Haiku | Good | Low | All steps (recommended) | 8,000 |
-| Nova Lite | Medium | Very Low | Action only | 5,000 |
-| Nova Micro | Basic | Lowest | Action only | 5,000 |
-
-## 📊 Performance Metrics
-
-### ReAct Iteration Efficiency
-- **Average Iterations**: 2-4 (adaptive based on quality)
-- **Success Rate**: 95%+ with meaningful answers
-- **Response Time**: 4-12 seconds (depending on iterations)
-- **Citation Accuracy**: 100% when KB results available
-
-### Conversation Continuity
-- **Context Retention**: Up to 6 message history
-- **Continuation Detection**: 98%+ accuracy for Korean/English phrases
-- **Natural Flow**: Seamless dialogue without context loss
 
 ## 📄 License
 

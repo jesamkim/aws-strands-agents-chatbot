@@ -10,6 +10,55 @@ from utils.bedrock_client import BedrockClient
 from utils.kb_search import KnowledgeBaseSearcher
 
 
+def _render_system_status():
+    """시스템 상태 표시"""
+    st.sidebar.markdown("### 🚀 시스템 상태")
+    
+    # 현재 활성 시스템 표시
+    use_strands = st.session_state.get('use_strands', True)
+    
+    if use_strands:
+        st.sidebar.success("✅ Strands Agents 활성")
+        st.sidebar.caption("AWS 공식 프레임워크 사용 중")
+        
+        # Strands 시스템 상태 확인
+        try:
+            from agents.strands_adapter import StrandsCompatibilityAdapter
+            from utils.config import AgentConfig
+            
+            # 기본 설정으로 상태 확인
+            temp_config = AgentConfig.create_default()
+            adapter = StrandsCompatibilityAdapter(temp_config, use_strands=True)
+            
+            if adapter.strands_available:
+                st.sidebar.info("🔧 Strands 프레임워크 준비됨")
+            else:
+                st.sidebar.warning("⚠️ Strands 초기화 실패")
+                st.sidebar.caption("Legacy 시스템으로 폴백됩니다")
+                
+        except Exception as e:
+            st.sidebar.error("❌ Strands 상태 확인 실패")
+            st.sidebar.caption(f"오류: {str(e)[:50]}...")
+    else:
+        st.sidebar.info("🔄 Legacy ReAct 활성")
+        st.sidebar.caption("기존 수동 ReAct 패턴 사용 중")
+    
+    # 시스템 전환 버튼
+    col1, col2 = st.sidebar.columns(2)
+    
+    with col1:
+        if st.button("🚀 Strands", disabled=use_strands, key="switch_to_strands"):
+            st.session_state.use_strands = True
+            st.rerun()
+    
+    with col2:
+        if st.button("🔄 Legacy", disabled=not use_strands, key="switch_to_legacy"):
+            st.session_state.use_strands = False
+            st.rerun()
+    
+    st.sidebar.markdown("---")
+
+
 def _get_model_name(model_id: str) -> str:
     """모델 ID에서 표시명 추출"""
     for name, id in AVAILABLE_MODELS.items():
@@ -26,6 +75,9 @@ def render_sidebar() -> AgentConfig:
         AgentConfig: 사용자가 설정한 Agent 구성
     """
     st.sidebar.title("🤖 ReAct Agent 설정")
+    
+    # 시스템 상태 섹션 (새로 추가)
+    _render_system_status()
     
     # 모델 선택 섹션
     _render_model_selection()
@@ -129,28 +181,14 @@ def _render_enhanced_kb_settings():
     )
     st.session_state['kb_id'] = kb_id
     
-    # KB 설명 입력 (새로 추가)
-    kb_description = st.sidebar.text_area(
-        "KB Description",
-        value=st.session_state.get('kb_description', ''),
-        height=80,
-        placeholder="예: Anycompany 비즈니스 참조\n예: 기술 문서 및 API 가이드\n예: HR 정책 및 절차 매뉴얼",
-        help="KB에 포함된 내용에 대한 간단한 설명 (KB 검색 판단에 활용)"
-    )
-    st.session_state['kb_description'] = kb_description
-    
     # KB 설정 상태 표시
-    if kb_id and kb_description:
-        st.sidebar.success("✅ KB 검색 기능 완전 활성화")
-        st.sidebar.info(f"📚 KB 내용: {kb_description}")
+    if kb_id:
+        st.sidebar.success("✅ KB 검색 기능 활성화")
         st.sidebar.caption("• 검색 타입: Hybrid")
         st.sidebar.caption("• 최대 결과: 5개")
         st.sidebar.caption("• 지능적 검색 판단: 활성화")
-    elif kb_id:
-        st.sidebar.warning("⚠️ KB 설명을 추가하면 더 정확한 검색 판단이 가능합니다")
-        st.sidebar.caption("• 기본 검색 로직 사용")
     else:
-        st.sidebar.info("💡 KB ID와 설명을 입력하면 지능적 검색이 활성화됩니다")
+        st.sidebar.info("💡 KB ID를 입력하면 지능적 검색이 활성화됩니다")
     
     # KB 검색 규칙 설명
     if kb_id:
@@ -285,14 +323,9 @@ def _render_config_summary():
         
         # KB 정보
         kb_id = st.session_state.get('kb_id', '')
-        kb_desc = st.session_state.get('kb_description', '')
         st.write("**🔍 Knowledge Base:**")
         if kb_id:
             st.write(f"• ID: {kb_id}")
-            if kb_desc:
-                st.write(f"• 설명: {kb_desc}")
-            else:
-                st.write("• 설명: 없음")
         else:
             st.write("• 비활성화")
         

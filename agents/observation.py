@@ -103,6 +103,44 @@ class CitationEnhancedObservationAgent:
                 enhanced_result['citation_id'] = citation_id
                 results_with_citations.append(enhanced_result)
             
+            # 현재 반복 횟수 확인 (previous_steps에서 Action 단계 수 계산)
+            previous_steps = context.get("previous_steps", [])
+            action_count = sum(1 for step in previous_steps if step.get("type") == "Action")
+            current_iteration = action_count
+            
+            print(f"   📊 현재 반복: {current_iteration}회차, 검색 결과: {len(search_results)}개")
+            
+            # 검색 결과 품질 평가
+            quality_assessment = self._assess_search_quality(search_results, original_query, search_keywords, current_iteration)
+            
+            print(f"   🎯 품질 평가: {quality_assessment['reason']} (점수: {quality_assessment['score']:.3f})")
+            
+            # 재시도가 필요한 경우 (5회차가 아니고 품질이 불충분한 경우)
+            if current_iteration < 5 and quality_assessment["needs_retry"]:
+                retry_keywords = self._generate_retry_keywords(original_query, search_keywords, quality_assessment["reason"])
+                print(f"   🔄 재시도 키워드: {retry_keywords}")
+                
+                return {
+                    "type": "Observation",
+                    "model": self.config.observation_model,
+                    "content": f"검색 결과 불충분. 재시도 필요: {retry_keywords}",
+                    "parsed_result": {
+                        "analysis": f"검색 결과 불충분 ({current_iteration}회차): {quality_assessment['reason']}",
+                        "is_final_answer": False,
+                        "final_answer": "",
+                        "needs_retry": True,
+                        "retry_keywords": retry_keywords,
+                        "retry_reason": quality_assessment["reason"],
+                        "iteration_count": current_iteration
+                    },
+                    "search_results_count": len(search_results),
+                    "quality_score": quality_assessment["score"],
+                    "error": False
+                }
+            
+            # 최종 답변 생성 (5회차이거나 품질이 충분한 경우)
+            print(f"   ✅ 최종 답변 생성 (반복: {current_iteration}, 품질 충족: {not quality_assessment['needs_retry']})")
+            
             # 검색 결과 텍스트 구성 (Citation 포함)
             results_text = ""
             for citation in citations:
@@ -119,35 +157,9 @@ class CitationEnhancedObservationAgent:
                     elif msg.get("role") == "assistant":
                         previous_context += f"이전 답변: {msg.get('content', '')[:150]}...\n"
             
-            # 현재 반복 횟수 확인 (previous_steps에서 Action 단계 수 계산)
-            previous_steps = context.get("previous_steps", [])
-            action_count = sum(1 for step in previous_steps if step.get("type") == "Action")
-            current_iteration = action_count + 1
-            
-            # 검색 결과 품질 평가
-            quality_assessment = self._assess_search_quality(search_results, original_query, search_keywords, current_iteration)
-            
-            # 최종 반복(5회차)이거나 품질이 충분한 경우 답변 생성
-            if current_iteration >= 5 or not quality_assessment["needs_retry"]:
-                # 검색 결과 텍스트 구성 (Citation 포함)
-                results_text = ""
-                for citation in citations:
-                    content = citation['content'][:400]  # 400자로 제한
-                    results_text += f"[{citation['id']}] {content}...\n출처: {citation['source']}\n\n"
-                
-                # 이전 대화 맥락
-                previous_context = ""
-                if context_info.get("has_context", False) and conversation_history:
-                    recent_messages = conversation_history[-2:]
-                    for msg in recent_messages:
-                        if msg.get("role") == "user":
-                            previous_context += f"이전 질문: {msg.get('content', '')}\n"
-                        elif msg.get("role") == "assistant":
-                            previous_context += f"이전 답변: {msg.get('content', '')[:150]}...\n"
-                
-                # Citation 강화 프롬프트 (최종 답변용)
-                if current_iteration >= 5:
-                    prompt = f"""이전 대화 맥락:
+            # Citation 강화 프롬프트 (최종 답변용)
+            if current_iteration >= 5:
+                prompt = f"""이전 대화 맥락:
 {previous_context}
 
 현재 사용자 질문: {original_query}
@@ -166,79 +178,8 @@ Knowledge Base 검색 결과 ({current_iteration}회 검색 후):
 5. 정확한 정보를 찾지 못했다면 그 사실을 명시하고 대안을 제시하세요
 
 답변:"""
-                else:
-                    prompt = f"""이전 대화 맥락:
-{previous_context}
-
-현재 사용자 질문: {original_query}
-분석된 의도: {context_info.get('intent', '')}
-
-Knowledge Base 검색 결과:
-{results_text}
-
-위의 검색 결과를 바탕으로 사용자의 질문에 대한 정확하고 상세한 답변을 생성해주세요.
-
-**중요한 요구사항:**
-1. 검색 결과의 정보를 활용할 때는 반드시 [1], [2] 형태의 Citation을 포함하세요
-2. 답변 마지막에 "**참고 자료:**" 섹션을 추가하여 모든 출처를 나열하세요
-3. 검색 결과에 없는 정보는 추측하지 마세요
-4. 구체적이고 실용적인 답변을 제공하세요
-
-답변:"""
-                
-                response = self.bedrock_client.invoke_model(
-                    model_id=self.config.observation_model,
-                    prompt=prompt,
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.get_max_tokens_for_model(self.config.observation_model),
-                    system_prompt=self._get_citation_system_prompt()
-                )
-                
-                # Citation 정보가 포함되지 않은 경우 자동 추가
-                enhanced_response = self._ensure_citations_in_response(response, citations)
-                
-                return {
-                    "type": "Observation",
-                    "model": self.config.observation_model,
-                    "content": enhanced_response,
-                    "parsed_result": {
-                        "analysis": f"Citation 강화 검색 결과 {len(search_results)}개 분석 ({current_iteration}회차)",
-                        "is_final_answer": True,
-                        "final_answer": enhanced_response,
-                        "needs_retry": False,
-                        "retry_keywords": [],
-                        "citations": citations,
-                        "search_results_used": len(search_results),
-                        "iteration_count": current_iteration
-                    },
-                    "search_results_count": len(search_results),
-                    "context_applied": context_info.get("has_context", False),
-                    "citations": citations,
-                    "quality_score": quality_assessment["score"],
-                    "error": False
-                }
-            
-            # 재시도가 필요한 경우
             else:
-                retry_keywords = self._generate_retry_keywords(original_query, search_keywords, quality_assessment["reason"])
-                return {
-                    "type": "Observation",
-                    "model": self.config.observation_model,
-                    "content": f"Search results insufficient. Retry needed with keywords: {retry_keywords}",
-                    "parsed_result": {
-                        "analysis": f"검색 결과 불충분 ({current_iteration}회차): {quality_assessment['reason']}",
-                        "is_final_answer": False,
-                        "final_answer": "",
-                        "needs_retry": True,
-                        "retry_keywords": retry_keywords,
-                        "retry_reason": quality_assessment["reason"],
-                        "iteration_count": current_iteration
-                    },
-                    "search_results_count": len(search_results),
-                    "quality_score": quality_assessment["score"],
-                    "error": False
-                }
-            prompt = f"""이전 대화 맥락:
+                prompt = f"""이전 대화 맥락:
 {previous_context}
 
 현재 사용자 질문: {original_query}
@@ -254,14 +195,6 @@ Knowledge Base 검색 결과:
 2. 답변 마지막에 "**참고 자료:**" 섹션을 추가하여 모든 출처를 나열하세요
 3. 검색 결과에 없는 정보는 추측하지 마세요
 4. 구체적이고 실용적인 답변을 제공하세요
-
-답변 형식:
-[검색 결과 기반 상세 답변 with Citations]
-
-**참고 자료:**
-[1] 출처 정보
-[2] 출처 정보
-...
 
 답변:"""
             
@@ -281,17 +214,19 @@ Knowledge Base 검색 결과:
                 "model": self.config.observation_model,
                 "content": enhanced_response,
                 "parsed_result": {
-                    "analysis": f"Citation 강화 검색 결과 {len(search_results)}개 분석",
+                    "analysis": f"Citation 강화 검색 결과 {len(search_results)}개 분석 ({current_iteration}회차)",
                     "is_final_answer": True,
                     "final_answer": enhanced_response,
                     "needs_retry": False,
                     "retry_keywords": [],
                     "citations": citations,
-                    "search_results_used": len(search_results)
+                    "search_results_used": len(search_results),
+                    "iteration_count": current_iteration
                 },
                 "search_results_count": len(search_results),
                 "context_applied": context_info.get("has_context", False),
                 "citations": citations,
+                "quality_score": quality_assessment["score"],
                 "error": False
             }
             
@@ -549,129 +484,183 @@ Knowledge Base에서 관련 정보를 찾을 수 없었습니다.
         return "안녕하세요! 무엇을 도와드릴까요?"
     
     def _assess_search_quality(self, search_results: List[Dict], query: str, keywords: List[str], iteration: int = 1) -> Dict:
-        """검색 결과 품질 평가 - 반복 횟수에 따른 기준 조정"""
+        """LLM 기반 검색 결과 품질 평가"""
         if not search_results or len(search_results) == 0:
             return {
-                "needs_retry": iteration < 5,  # 5회차에서는 재시도 안함
+                "needs_retry": iteration < 5,
                 "reason": "검색 결과 없음",
                 "score": 0.0
             }
         
-        # 반복 횟수에 따른 기준 완화
-        if iteration <= 2:
-            # 초기 반복: 엄격한 기준
-            min_avg_score = 0.5
-            min_max_score = 0.6
-            min_content_length = 200
-        elif iteration <= 4:
-            # 중간 반복: 완화된 기준
-            min_avg_score = 0.4
-            min_max_score = 0.5
-            min_content_length = 150
-        else:
-            # 최종 반복: 매우 완화된 기준 (거의 통과)
-            min_avg_score = 0.2
-            min_max_score = 0.3
-            min_content_length = 50
-        
-        # 평균 점수 계산
-        avg_score = sum(result.get('score', 0) for result in search_results) / len(search_results)
-        max_score = max(result.get('score', 0) for result in search_results)
-        total_content_length = sum(len(result.get('content', '')) for result in search_results)
-        
-        # 검색 결과가 1개뿐인 경우
-        if len(search_results) == 1:
-            score = search_results[0].get('score', 0)
-            if score < min_max_score and iteration < 5:
-                return {
-                    "needs_retry": True,
-                    "reason": f"검색 결과 1개, 관련성 낮음 (점수: {score:.3f}, {iteration}회차)",
-                    "score": score
-                }
-        
-        # 평균 점수가 낮은 경우
-        if avg_score < min_avg_score and iteration < 5:
-            return {
-                "needs_retry": True,
-                "reason": f"평균 관련성 점수 낮음 ({avg_score:.3f}, {iteration}회차)",
-                "score": avg_score
-            }
-        
-        # 최고 점수가 너무 낮은 경우
-        if max_score < min_max_score and iteration < 5:
-            return {
-                "needs_retry": True,
-                "reason": f"최고 관련성 점수 낮음 ({max_score:.3f}, {iteration}회차)",
-                "score": max_score
-            }
-        
-        # 검색 결과 내용이 너무 짧은 경우
-        if total_content_length < min_content_length and iteration < 5:
-            return {
-                "needs_retry": True,
-                "reason": f"검색 결과 내용 부족 ({total_content_length}자, {iteration}회차)",
-                "score": avg_score
-            }
-        
-        # 품질이 충분한 경우 또는 최종 반복인 경우
-        return {
-            "needs_retry": False,
-            "reason": f"검색 결과 품질 {'양호' if iteration < 5 else '최종 반복'} (평균: {avg_score:.3f}, 최고: {max_score:.3f}, {iteration}회차)",
-            "score": avg_score
-        }
-    
-    def _generate_retry_keywords(self, query: str, previous_keywords: List[str], reason: str) -> List[str]:
-        """재시도를 위한 대체 키워드 생성"""
         try:
-            # 간단한 키워드 변형 로직
-            import re
+            # 검색 결과 요약 생성
+            results_summary = ""
+            for i, result in enumerate(search_results, 1):
+                content = result.get('content', '')[:200]  # 200자로 제한
+                score = result.get('score', 0)
+                results_summary += f"결과 {i} (관련성: {score:.3f}): {content}...\n"
             
-            # 원본 쿼리에서 핵심 단어 추출
-            korean_words = re.findall(r'[가-힣]+', query)
+            # LLM을 통한 품질 평가
+            evaluation_prompt = f"""사용자 질문: {query}
+검색 키워드: {keywords}
+현재 반복 횟수: {iteration}/5
+
+검색 결과:
+{results_summary}
+
+위의 검색 결과가 사용자 질문에 대한 답변을 제공하기에 충분한지 평가해주세요.
+
+평가 기준:
+1. 질문과의 관련성 (검색 결과가 질문의 핵심 내용을 다루고 있는가?)
+2. 정보의 구체성 (구체적인 절차, 규정, 기준 등이 포함되어 있는가?)
+3. 답변 완성도 (이 정보만으로 사용자에게 도움이 되는 답변을 만들 수 있는가?)
+
+반복 횟수별 기준:
+- 1-2회차: 엄격한 기준 (높은 관련성과 구체적 정보 필요)
+- 3-4회차: 완화된 기준 (부분적 정보라도 유용하면 통과)
+- 5회차: 매우 완화된 기준 (최소한의 관련 정보만 있어도 통과)
+
+다음 형식으로 답변해주세요:
+QUALITY_SCORE: [0.0-1.0 사이의 점수]
+SUFFICIENT: [YES/NO]
+REASON: [평가 이유를 한 문장으로]"""
+
+            response = self.bedrock_client.invoke_model(
+                model_id=self.config.observation_model,
+                prompt=evaluation_prompt,
+                temperature=0.1,  # 일관된 평가를 위해 낮은 temperature
+                max_tokens=200,
+                system_prompt="당신은 검색 결과의 품질을 객관적으로 평가하는 전문가입니다."
+            )
             
-            # 이전 키워드와 다른 새로운 키워드 생성
-            new_keywords = []
+            # 응답 파싱
+            lines = response.strip().split('\n')
+            quality_score = 0.0
+            is_sufficient = False
+            reason = "평가 실패"
             
-            # 동의어/유사어 매핑
-            synonym_map = {
-                "규정": ["정책", "지침", "기준", "절차"],
-                "지원": ["혜택", "보조", "도움", "제공"],
-                "전결": ["승인", "결재", "허가", "인가"],
-                "치료": ["의료", "진료", "처치", "케어"],
-                "시술": ["수술", "처치", "의료행위", "진료"],
-                "복리후생": ["직원혜택", "근로자혜택", "복지", "후생"],
-                "회사": ["기업", "조직", "직장", "사업장"]
+            for line in lines:
+                if line.startswith('QUALITY_SCORE:'):
+                    try:
+                        quality_score = float(line.split(':')[1].strip())
+                    except:
+                        quality_score = 0.0
+                elif line.startswith('SUFFICIENT:'):
+                    is_sufficient = 'YES' in line.upper()
+                elif line.startswith('REASON:'):
+                    reason = line.split(':', 1)[1].strip()
+            
+            # 최종 반복(5회차)에서는 항상 충분하다고 판단
+            if iteration >= 5:
+                is_sufficient = True
+                reason += " (최종 반복)"
+            
+            needs_retry = not is_sufficient and iteration < 5
+            
+            print(f"   🤖 LLM 품질 평가: 점수={quality_score:.3f}, 충분={is_sufficient}, 재시도={needs_retry}")
+            
+            return {
+                "needs_retry": needs_retry,
+                "reason": reason,
+                "score": quality_score
             }
-            
-            # 기존 키워드를 동의어로 변경
-            for keyword in previous_keywords:
-                for word, synonyms in synonym_map.items():
-                    if word in keyword:
-                        for synonym in synonyms:
-                            new_keyword = keyword.replace(word, synonym)
-                            if new_keyword not in new_keywords and new_keyword not in previous_keywords:
-                                new_keywords.append(new_keyword)
-                                break
-                        break
-            
-            # 원본 쿼리의 핵심 단어 조합
-            if len(korean_words) >= 2:
-                for i in range(len(korean_words)-1):
-                    combined = f"{korean_words[i]} {korean_words[i+1]}"
-                    if combined not in new_keywords and combined not in previous_keywords:
-                        new_keywords.append(combined)
-            
-            # 단일 핵심 단어들
-            for word in korean_words:
-                if len(word) >= 2 and word not in new_keywords and word not in str(previous_keywords):
-                    new_keywords.append(word)
-            
-            # 최대 3개 반환
-            return new_keywords[:3] if new_keywords else [query[:20]]
             
         except Exception as e:
-            # 폴백: 원본 쿼리의 일부 사용
-            return [query[:20]]
+            print(f"   ⚠️ LLM 품질 평가 오류: {str(e)}")
+            # 폴백: 간단한 점수 기반 평가
+            avg_score = sum(result.get('score', 0) for result in search_results) / len(search_results)
+            
+            # 반복 횟수에 따른 기본 임계값
+            threshold = 0.5 if iteration <= 2 else (0.4 if iteration <= 4 else 0.2)
+            
+            return {
+                "needs_retry": avg_score < threshold and iteration < 5,
+                "reason": f"폴백 평가: 평균 점수 {avg_score:.3f} (임계값: {threshold})",
+                "score": avg_score
+            }
+    
+    def _generate_retry_keywords(self, query: str, previous_keywords: List[str], reason: str) -> List[str]:
+        """LLM 기반 재시도 키워드 생성"""
+        try:
+            keyword_generation_prompt = f"""사용자 질문: {query}
+이전 검색 키워드: {previous_keywords}
+검색 실패 이유: {reason}
+
+위의 정보를 바탕으로 더 나은 검색 결과를 얻을 수 있는 새로운 키워드들을 생성해주세요.
+
+키워드 생성 전략:
+1. 동의어/유사어 사용 (예: "규정" → "정책", "지침", "기준")
+2. 더 구체적인 용어 사용 (예: "지원" → "지원금", "지원제도")
+3. 더 일반적인 용어 사용 (너무 구체적이었다면)
+4. 관련 분야의 전문 용어 활용
+5. 다른 표현 방식 시도
+
+이전 키워드와는 다른 새로운 키워드 3-4개를 생성해주세요.
+
+형식:
+KEYWORD1: [키워드1]
+KEYWORD2: [키워드2]
+KEYWORD3: [키워드3]
+KEYWORD4: [키워드4] (선택사항)"""
+
+            response = self.bedrock_client.invoke_model(
+                model_id=self.config.observation_model,
+                prompt=keyword_generation_prompt,
+                temperature=0.7,  # 창의적인 키워드 생성을 위해 높은 temperature
+                max_tokens=300,
+                system_prompt="당신은 검색 키워드 최적화 전문가입니다. 다양한 관점에서 효과적인 검색 키워드를 생성할 수 있습니다."
+            )
+            
+            # 키워드 추출
+            new_keywords = []
+            lines = response.strip().split('\n')
+            
+            for line in lines:
+                if line.startswith('KEYWORD'):
+                    try:
+                        keyword = line.split(':', 1)[1].strip()
+                        if keyword and keyword not in new_keywords and keyword not in str(previous_keywords):
+                            new_keywords.append(keyword)
+                    except:
+                        continue
+            
+            # 키워드가 생성되지 않은 경우 폴백
+            if not new_keywords:
+                print("   ⚠️ LLM 키워드 생성 실패, 폴백 사용")
+                return self._fallback_keyword_generation(query, previous_keywords)
+            
+            print(f"   🤖 LLM 생성 키워드: {new_keywords}")
+            return new_keywords[:4]  # 최대 4개
+            
+        except Exception as e:
+            print(f"   ⚠️ LLM 키워드 생성 오류: {str(e)}")
+            return self._fallback_keyword_generation(query, previous_keywords)
+    
+    def _fallback_keyword_generation(self, query: str, previous_keywords: List[str]) -> List[str]:
+        """폴백 키워드 생성 (LLM 실패 시)"""
+        import re
+        
+        # 원본 쿼리에서 핵심 단어 추출
+        korean_words = re.findall(r'[가-힣]+', query)
+        new_keywords = []
+        
+        # 단어 조합 생성
+        if len(korean_words) >= 2:
+            for i in range(len(korean_words)-1):
+                combined = f"{korean_words[i]} {korean_words[i+1]}"
+                if combined not in str(previous_keywords):
+                    new_keywords.append(combined)
+        
+        # 개별 단어 추가
+        for word in korean_words:
+            if len(word) >= 2 and word not in str(previous_keywords):
+                new_keywords.append(word)
+        
+        # 원본 쿼리 일부 사용
+        if not new_keywords:
+            new_keywords = [query[:15], query[-15:]]
+        
+        return new_keywords[:3]
     
     def _create_final_response(self, answer: str, analysis: str) -> Dict:
         """최종 응답 생성"""

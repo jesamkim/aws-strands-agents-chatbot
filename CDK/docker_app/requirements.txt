@@ -1,7 +1,16 @@
-streamlit==1.28.1
-boto3==1.34.0
-botocore==1.34.0
-pandas==2.1.4
-numpy==1.24.3
-python-dotenv==1.0.0
-requests==2.31.0
+# Core Dependencies
+streamlit>=1.28.0
+boto3>=1.34.0
+langchain>=0.1.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+streamlit-chat>=0.1.1
+
+# AWS Strands Agents Framework (Optional - for full functionality)
+# Uncomment the following lines to enable real Strands Agents:
+strands-agents
+strands-agents-tools
+
+# Note: The application works without Strands Agents libraries using Mock implementation
+# To enable full Strands Agents functionality, install:
+# pip install strands-agents strands-agents-tools

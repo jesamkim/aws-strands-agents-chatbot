@@ -1,5 +1,5 @@
 """
-AWS Strands Agents 기반 ReAct 패턴 구현 패키지
+AWS Bedrock 기반 ReAct 패턴 구현 패키지
 """
 
 from .react_agent import ReActAgent

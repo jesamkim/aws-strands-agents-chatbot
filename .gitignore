@@ -7,6 +7,19 @@ kb_test.md
 output.md
 plan.md
 
+# 불필요한 분석/상태 문서들
+FINAL_STATUS.md
+STRANDS_AVAILABILITY_GUIDE.md
+STRANDS_IMPLEMENTATION_SUMMARY.md
+STRANDS_SYNTAX_ANALYSIS.md
+strands-agents-example.md
+
+# 성능 분석 및 디버그 스크립트
+analyze_performance.py
+configure_timeouts.py
+debug_strands.py
+run_streamlit_py312.sh
+
 # CDK 관련 파일
 CDK/cdk.out/
 CDK/venv/
@@ -14,6 +27,7 @@ CDK/**/__pycache__/
 CDK/**/*.pyc
 CDK/.env
 CDK/docker_app/.env
+CDK/cdk.context.json
 
 # 로그 파일
 *.log

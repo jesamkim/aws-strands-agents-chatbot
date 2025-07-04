@@ -25,14 +25,11 @@ class CdkStack(Stack):
         # Define prefix that will be used in some resource names
         prefix = Config.STACK_NAME
 
-        # VPC for ALB and ECS cluster
-        vpc = ec2.Vpc(
+        # Use existing VPC to avoid hitting VPC limits
+        vpc = ec2.Vpc.from_lookup(
             self,
             f"{prefix}AppVpc",
-            ip_addresses=ec2.IpAddresses.cidr("10.0.0.0/16"),
-            max_azs=2,
-            vpc_name=f"{prefix}-react-vpc",
-            nat_gateways=1,
+            vpc_id="vpc-0ac23ba62f6156856"  # aws-strands-react-chatbot-react-vpc
         )
 
         ecs_security_group = ec2.SecurityGroup(

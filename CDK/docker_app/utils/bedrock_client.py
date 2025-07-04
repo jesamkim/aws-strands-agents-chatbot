@@ -6,6 +6,7 @@ import json
 import boto3
 from typing import Dict, Any, Optional
 from botocore.exceptions import ClientError
+from botocore.config import Config
 import streamlit as st
 
 from .config import AWS_REGION
@@ -22,9 +23,20 @@ class BedrockClient:
             region_name: AWS 리전명
         """
         try:
+            # 타임아웃 설정 추가
+            config = Config(
+                read_timeout=120,  # 읽기 타임아웃 120초
+                connect_timeout=60,  # 연결 타임아웃 60초
+                retries={
+                    'max_attempts': 3,  # 최대 재시도 3회
+                    'mode': 'adaptive'  # 적응형 재시도
+                }
+            )
+            
             self.bedrock_runtime = boto3.client(
                 'bedrock-runtime',
-                region_name=region_name
+                region_name=region_name,
+                config=config
             )
             self.region_name = region_name
         except Exception as e:

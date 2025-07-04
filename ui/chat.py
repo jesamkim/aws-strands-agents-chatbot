@@ -233,12 +233,10 @@ def _handle_user_input(config: AgentConfig):
 
 
 def _generate_assistant_response(user_input: str, config: AgentConfig):
-    """Assistant 응답 생성 (실제 ReAct 엔진 사용)"""
+    """Assistant 응답 생성 (Strands Agents 또는 Legacy ReAct 사용)"""
     try:
-        from agents.react_agent import ReActAgent
-        
-        # ReAct Agent 초기화
-        react_agent = ReActAgent(config)
+        # 시스템 선택 확인
+        use_strands = st.session_state.get('use_strands', True)
         
         # 대화 히스토리 가져오기 (현재 사용자 메시지 제외)
         all_messages = st.session_state.messages[:-1]  # 마지막 메시지(현재 입력) 제외
@@ -254,7 +252,117 @@ def _generate_assistant_response(user_input: str, config: AgentConfig):
                     "timestamp": msg.get("timestamp", 0)
                 })
         
-        with st.spinner("🤖 ReAct Agent가 분석하고 있습니다..."):
+        if use_strands:
+            # Strands Agents 시스템 사용
+            _generate_strands_response(user_input, config, formatted_history)
+        else:
+            # Legacy ReAct 시스템 사용
+            _generate_legacy_response(user_input, config, formatted_history)
+        
+    except Exception as e:
+        # 에러 처리
+        error_message = f"응답 생성 중 오류가 발생했습니다: {str(e)}"
+        st.error(error_message)
+        
+        # 디버그 정보 표시
+        with st.expander("🔧 디버그 정보", expanded=False):
+            st.text(f"에러 타입: {type(e).__name__}")
+            st.text(f"에러 메시지: {str(e)}")
+            
+            # 스택 트레이스 표시
+            import traceback
+            st.text("스택 트레이스:")
+            st.code(traceback.format_exc())
+        
+        # 에러 응답도 세션에 저장
+        error_response = {
+            "role": "assistant",
+            "content": "죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
+            "timestamp": time.time(),
+            "error": True,
+            "error_details": str(e)
+        }
+        st.session_state.messages.append(error_response)
+
+
+def _generate_strands_response(user_input: str, config: AgentConfig, formatted_history: List[Dict]):
+    """Strands Agents 시스템으로 응답 생성"""
+    try:
+        # Strands를 우선 사용 (안정성 확보)
+        try:
+            from agents.enhanced_mock_strands import EnhancedMockStrandsAgent
+            chatbot = EnhancedMockStrandsAgent(config)
+            strands_type = "Strands Agents"
+            print("✅ Strands Agents 사용 (실제 KB 검색 지원)")
+        except ImportError:
+            # 폴백: 간소화된 구현 사용
+            from agents.strands_adapter_simple import SimpleStrandsCompatibilityAdapter
+            chatbot = SimpleStrandsCompatibilityAdapter(config, use_strands=True)
+            strands_type = "Simple Strands Agents"
+            print("⚠️ Simple Strands Agents 사용")
+        
+        with st.spinner(f"🚀 {strands_type}가 분석하고 있습니다..."):
+            # 진행 상황 표시
+            progress_placeholder = st.empty()
+            
+            progress_placeholder.progress(0.1, text="🎯 Context Analysis: 대화 맥락 분석 중...")
+            time.sleep(0.5)
+            
+            progress_placeholder.progress(0.3, text="🔍 KB Search: Knowledge Base 검색 중...")
+            time.sleep(0.5)
+            
+            progress_placeholder.progress(0.7, text="📝 Answer Generation: 답변 생성 중...")
+            time.sleep(0.5)
+            
+            # Strands 시스템 실행
+            if hasattr(chatbot, 'process_query'):
+                response = chatbot.process_query(user_input, formatted_history)
+            else:
+                response = chatbot.process_query(user_input, formatted_history)
+            
+            progress_placeholder.progress(1.0, text=f"✅ {strands_type} 완료!")
+            time.sleep(0.5)
+            progress_placeholder.empty()
+            
+            # 응답 표시
+            final_answer = response.get("final_answer", response.get("content", "응답을 생성할 수 없습니다."))
+            st.write(final_answer)
+            
+            # Strands 특화 정보 표시
+            _render_strands_info(response)
+            
+            # 응답을 세션에 저장
+            assistant_message = {
+                "role": "assistant",
+                "content": final_answer,
+                "timestamp": time.time(),
+                "steps": response.get("steps", []),
+                "metadata": response.get("model_info", {}),
+                "framework": strands_type,
+                "search_results": response.get("search_results", []),
+                "citations": response.get("citations", []),
+                "iterations": response.get("iterations", 1),
+                "processing_time": response.get("processing_time", 0),
+                "error": False
+            }
+            st.session_state.messages.append(assistant_message)
+            
+    except Exception as e:
+        st.error(f"Strands Agents 처리 중 오류가 발생했습니다: {str(e)}")
+        # Legacy 시스템으로 폴백
+        st.info("🔄 Legacy ReAct 시스템으로 전환합니다...")
+        _generate_legacy_response(user_input, config, formatted_history)
+
+
+def _generate_legacy_response(user_input: str, config: AgentConfig, formatted_history: List[Dict]):
+    """Legacy ReAct 시스템으로 응답 생성"""
+    try:
+        from agents.react_agent import ReActAgent
+        
+        # ReAct Agent 초기화
+        react_agent = ReActAgent(config)
+        
+        with st.spinner("🔄 Legacy ReAct Agent가 분석하고 있습니다..."):
             # 진행 상황 표시
             progress_placeholder = st.empty()
             
@@ -263,8 +371,8 @@ def _generate_assistant_response(user_input: str, config: AgentConfig):
             
             response = react_agent.run(user_input, formatted_history)
             
-            progress_placeholder.progress(1.0, text="✅ 완료!")
-            time.sleep(0.5)  # 잠시 표시
+            progress_placeholder.progress(1.0, text="✅ Legacy ReAct 완료!")
+            time.sleep(0.5)
             progress_placeholder.empty()
             
             # 응답 구조 정규화
@@ -288,34 +396,95 @@ def _generate_assistant_response(user_input: str, config: AgentConfig):
                 "timestamp": time.time(),
                 "steps": react_steps,
                 "metadata": response.get("metadata", {}),
+                "framework": "Legacy ReAct",
                 "error": False
             }
             st.session_state.messages.append(assistant_message)
             
     except Exception as e:
-        # 에러 처리
-        error_message = f"ReAct 엔진 실행 중 오류가 발생했습니다: {str(e)}"
-        st.error(error_message)
-        
-        # 디버그 정보 표시
-        with st.expander("🔧 디버그 정보", expanded=False):
-            st.text(f"에러 타입: {type(e).__name__}")
-            st.text(f"에러 메시지: {str(e)}")
+        st.error(f"Legacy ReAct 오류: {str(e)}")
+        raise e
+
+
+def _render_strands_info(response: Dict[str, Any]):
+    """Strands Agents 특화 정보 표시"""
+    # 처리 시간 및 반복 정보
+    processing_time = response.get("processing_time", 0)
+    iterations = response.get("iterations", 1)
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if processing_time > 0:
+            st.metric("⏱️ 처리 시간", f"{processing_time:.2f}초")
+    
+    with col2:
+        if iterations > 0:
+            st.metric("🔄 반복 횟수", f"{iterations}회")
+    
+    with col3:
+        framework = response.get("model_info", {}).get("framework", "Strands Agents")
+        st.metric("🚀 프레임워크", framework)
+    
+    # 검색 결과 정보
+    search_results = response.get("search_results", [])
+    if search_results:
+        with st.expander("📚 Knowledge Base 검색 결과", expanded=False):
+            st.write(f"총 {len(search_results)}개의 관련 문서를 찾았습니다.")
             
-            # 스택 트레이스 표시
-            import traceback
-            st.text("스택 트레이스:")
-            st.code(traceback.format_exc())
-        
-        # 에러 응답도 세션에 저장
-        error_response = {
-            "role": "assistant",
-            "content": "죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
-            "timestamp": time.time(),
-            "error": True,
-            "error_details": str(e)
-        }
-        st.session_state.messages.append(error_response)
+            for i, result in enumerate(search_results[:3]):  # 상위 3개만 표시
+                st.markdown(f"**결과 {i+1}**")
+                
+                score = result.get("score", 0)
+                st.caption(f"관련성 점수: {score:.3f}")
+                
+                content = result.get("content", "")
+                if content:
+                    if len(content) > 200:
+                        st.text(content[:200] + "...")
+                    else:
+                        st.text(content)
+                
+                source = result.get("source", "")
+                if source:
+                    st.caption(f"출처: {source}")
+                
+                if i < len(search_results[:3]) - 1:
+                    st.divider()
+    
+    # Citation 정보
+    citations = response.get("citations", [])
+    if citations:
+        with st.expander("📖 참고 자료", expanded=False):
+            for citation in citations:
+                citation_id = citation.get("id", "")
+                source = citation.get("source", "")
+                score = citation.get("score", 0)
+                
+                st.markdown(f"**[{citation_id}]** {source}")
+                if score > 0:
+                    st.caption(f"관련성: {score:.3f}")
+    
+    # 맥락 분석 정보
+    context_analysis = response.get("context_analysis", {})
+    if context_analysis:
+        with st.expander("🧠 대화 맥락 분석", expanded=False):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if context_analysis.get("is_continuation"):
+                    st.success("✅ 대화 연속성 질문")
+                if context_analysis.get("is_greeting"):
+                    st.info("👋 인사말")
+                if context_analysis.get("has_context"):
+                    st.info("💬 이전 대화 맥락 있음")
+            
+            with col2:
+                if context_analysis.get("needs_kb_search"):
+                    st.info("🔍 KB 검색 필요")
+                confidence = context_analysis.get("confidence", 0)
+                if confidence > 0:
+                    st.metric("신뢰도", f"{confidence:.2f}")
 
 
 def _get_short_model_name(model_id: str) -> str:

@@ -11,21 +11,23 @@ import streamlit as st
 class AgentConfig:
     """ReAct Agent 설정 클래스"""
     
-    # 모델 설정
+    # 모델 설정 (필수 필드)
     orchestration_model: str
     action_model: str
     observation_model: str
     
-    # 시스템 설정
+    # 시스템 설정 (필수 필드)
     system_prompt: str
-    kb_id: Optional[str]
-    kb_description: Optional[str]  # 새로 추가
     
-    # 파라미터 설정
+    # 파라미터 설정 (필수 필드)
     temperature: float
     max_tokens: int
     
-    # 안전장치 설정
+    # 선택적 설정 (기본값 있는 필드들은 마지막에)
+    kb_id: Optional[str] = None
+    kb_description: Optional[str] = ""  # KB 설명 (기본값 빈 문자열)
+    
+    # 안전장치 설정 (기본값 있는 필드)
     max_iterations: int = 5
     max_errors: int = 3
     
@@ -37,10 +39,24 @@ class AgentConfig:
             action_model=st.session_state.get('action_model', 'us.amazon.nova-micro-v1:0'),  # 경제적 조합
             observation_model=st.session_state.get('observation_model', 'us.anthropic.claude-3-5-haiku-20241022-v1:0'),
             system_prompt=st.session_state.get('system_prompt', ''),
-            kb_id=st.session_state.get('kb_id'),
-            kb_description=st.session_state.get('kb_description', ''),  # 새로 추가
             temperature=st.session_state.get('temperature', 0.1),
-            max_tokens=st.session_state.get('max_tokens', 4000)
+            max_tokens=st.session_state.get('max_tokens', 4000),
+            kb_id=st.session_state.get('kb_id'),
+            kb_description=st.session_state.get('kb_description', ''),  # KB 설명 추가
+        )
+    
+    @classmethod
+    def create_default(cls) -> 'AgentConfig':
+        """기본 설정으로 AgentConfig 생성"""
+        return cls(
+            orchestration_model='us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            action_model='us.amazon.nova-micro-v1:0',
+            observation_model='us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            system_prompt='당신은 도움이 되는 AI 어시스턴트입니다.',
+            temperature=0.1,
+            max_tokens=4000,
+            kb_id=None,
+            kb_description='',  # KB 설명 기본값
         )
     
     def get_max_tokens_for_model(self, model_id: str) -> int:
@@ -61,7 +77,7 @@ class AgentConfig:
         return bool(self.kb_description and self.kb_description.strip())
     
     def get_kb_description(self) -> str:
-        """KB 설명 반환 (안전한 방식)"""
+        """KB 설명 반환 (안전한 접근)"""
         return self.kb_description.strip() if self.kb_description else ""
     
     def validate_model_selection(self) -> bool:

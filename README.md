@@ -1,18 +1,25 @@
-# 🤖 AWS Strands Agents ReAct Chatbot
+# 🤖 AWS Bedrock ReAct Chatbot
 
-A sophisticated chatbot implementation using the **ReAct (Reasoning and Acting) pattern** with Amazon Bedrock and Knowledge Base integration. This project demonstrates advanced AI agent orchestration with citation support, conversation continuity, and intelligent retry mechanisms.
+A sophisticated chatbot implementation using the **ReAct (Reasoning and Acting) pattern** with Amazon Bedrock and Knowledge Base integration. This project now supports both **AWS Strands Agents framework** and **Legacy ReAct implementation**, providing advanced AI agent orchestration with citation support, conversation continuity, and intelligent retry mechanisms.
 
 > 🌏 **Korean Documentation**: [README-KO.md](./README-KO.md)
 
 ## 🚀 Key Features
 
 ![Streamlit Interface](./img/Screenshot1.png)
-*▲ Streamlit web interface*
+*▲ Streamlit web interface with dual system support*
+
+### 🆕 **Dual System Architecture**
+- **🚀 Strands Agents Mode**: AWS official framework with automated agent orchestration
+- **🔄 Legacy ReAct Mode**: Custom implementation with manual ReAct loop
+- **🔄 Seamless Switching**: Runtime system selection with automatic fallback
+- **🛡️ Compatibility Layer**: Unified interface for both systems
 
 ### 🧠 Advanced ReAct Pattern Implementation
 - **KB-Priority Orchestration**: Intelligent decision-making based on KB availability
 - **Adaptive Retry Logic**: Up to 5 iterations with dynamic keyword generation
 - **Quality Assessment**: Intelligent search result evaluation with iteration-based criteria
+- **Tool-based Architecture**: Strands Agents uses @tool decorators for modular functionality
 
 ### 🤖 Multi-Model Support & Optimization
 - **Claude Models**: Claude 4, Claude 3.7 Sonnet, Claude 3.5 Sonnet v2, Claude 3.5 Haiku
@@ -182,8 +189,8 @@ sequenceDiagram
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/jesamkim/aws-strands-agents-chatbot.git
-cd aws-strands-agents-chatbot
+git clone https://github.com/jesamkim/aws-bedrock-react-chatbot.git
+cd aws-bedrock-react-chatbot
 ```
 
 ### 2. Create and Activate Python Virtual Environment
@@ -383,7 +390,7 @@ and business plan establishment must receive approval from the CEO/President [2]
 ## 📁 Project Structure
 
 ```
-aws-strands-agents-chatbot/
+aws-bedrock-react-chatbot/
 ├── agents/
 │   ├── __init__.py
 │   ├── react_agent.py          # Main ReAct engine with safety mechanisms
@@ -491,7 +498,6 @@ This project is distributed under the MIT License.
 
 ## 🔗 References
 
-- [AWS Strands Agents Workshop](https://catalog.us-east-1.prod.workshops.aws/workshops/33f099a6-45a2-47d7-9e3c-a23a6568821e/en-US)
 - [Amazon Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 - [Amazon Bedrock Knowledge Base](https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html)
 - [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)

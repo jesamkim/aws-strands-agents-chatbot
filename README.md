@@ -172,7 +172,7 @@ sequenceDiagram
 ## 📋 Requirements
 
 ### System Requirements
-- **Python**: 3.9 or higher
+- **Python**: 3.10 or higher (required for AWS Strands Agents)
 - **Operating System**: Linux/macOS (Ubuntu 20.04+ recommended)
 - **Memory**: Minimum 4GB RAM
 - **Network**: Internet connection (for AWS API calls)

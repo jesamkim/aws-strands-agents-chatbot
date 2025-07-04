@@ -23,7 +23,7 @@ Internet → CloudFront → ALB → ECS Fargate → Streamlit App
 ## 📋 사전 요구사항
 
 ### 1. 개발 환경
-- **Python**: 3.9 이상
+- **Python**: 3.10 이상 (AWS Strands Agents 필수 요구사항)
 - **Node.js**: 18.x 이상 (CDK CLI용)
 - **AWS CLI**: 최신 버전
 - **Docker**: 컨테이너 빌드용

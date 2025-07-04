@@ -1,5 +1,5 @@
 """
-Streamlit 사이드바 UI 컴포넌트
+KB 설명 입력이 추가된 Streamlit 사이드바 UI 컴포넌트
 """
 
 import streamlit as st
@@ -33,8 +33,8 @@ def render_sidebar() -> AgentConfig:
     # 시스템 프롬프트 섹션
     _render_system_prompt()
     
-    # Knowledge Base 설정 섹션
-    _render_kb_settings()
+    # Knowledge Base 설정 섹션 (개선됨)
+    _render_enhanced_kb_settings()
     
     # 파라미터 설정 섹션
     _render_parameters()
@@ -116,10 +116,11 @@ def _render_system_prompt():
     st.session_state['system_prompt'] = system_prompt
 
 
-def _render_kb_settings():
-    """Knowledge Base 설정 UI"""
+def _render_enhanced_kb_settings():
+    """개선된 Knowledge Base 설정 UI"""
     st.sidebar.header("🔍 Knowledge Base")
     
+    # KB ID 입력
     kb_id = st.sidebar.text_input(
         "Knowledge Base ID",
         value=st.session_state.get('kb_id', ''),
@@ -128,12 +129,42 @@ def _render_kb_settings():
     )
     st.session_state['kb_id'] = kb_id
     
-    if kb_id:
-        st.sidebar.info("✅ KB 검색 기능이 활성화됩니다")
+    # KB 설명 입력 (새로 추가)
+    kb_description = st.sidebar.text_area(
+        "KB Description",
+        value=st.session_state.get('kb_description', ''),
+        height=80,
+        placeholder="예: Anycompany 비즈니스 참조\n예: 기술 문서 및 API 가이드\n예: HR 정책 및 절차 매뉴얼",
+        help="KB에 포함된 내용에 대한 간단한 설명 (KB 검색 판단에 활용)"
+    )
+    st.session_state['kb_description'] = kb_description
+    
+    # KB 설정 상태 표시
+    if kb_id and kb_description:
+        st.sidebar.success("✅ KB 검색 기능 완전 활성화")
+        st.sidebar.info(f"📚 KB 내용: {kb_description}")
         st.sidebar.caption("• 검색 타입: Hybrid")
         st.sidebar.caption("• 최대 결과: 5개")
+        st.sidebar.caption("• 지능적 검색 판단: 활성화")
+    elif kb_id:
+        st.sidebar.warning("⚠️ KB 설명을 추가하면 더 정확한 검색 판단이 가능합니다")
+        st.sidebar.caption("• 기본 검색 로직 사용")
     else:
-        st.sidebar.warning("KB ID가 없으면 검색 기능을 사용할 수 없습니다")
+        st.sidebar.info("💡 KB ID와 설명을 입력하면 지능적 검색이 활성화됩니다")
+    
+    # KB 검색 규칙 설명
+    if kb_id:
+        with st.sidebar.expander("🔍 KB 검색 규칙", expanded=False):
+            st.write("**1. KB 설명 기반 판단**")
+            st.write("- 질문이 KB 설명과 관련있으면 검색")
+            st.write("- 예: 'Anycompany 비즈니스' → 회사 관련 질문 검색")
+            
+            st.write("**2. 모델 지식 한계 인식**")
+            st.write("- 모델이 모르는 내용이면 KB 검색")
+            st.write("- 예: 특정 회사 정책, 내부 절차 등")
+            
+            st.write("**3. 일반 상식 제외**")
+            st.write("- 무지개 색깔, 수학 계산 등은 KB 검색 안함")
 
 
 def _render_parameters():
@@ -198,87 +229,82 @@ def _render_connection_tests():
                 with st.spinner("KB 연결 테스트 중..."):
                     try:
                         searcher = KnowledgeBaseSearcher()
-                        if searcher.test_kb_connection(kb_id):
-                            st.success("✅ KB 연결 성공!")
+                        test_results = searcher.search(
+                            kb_id=kb_id,
+                            query="테스트",
+                            max_results=1
+                        )
+                        if test_results:
+                            st.success(f"✅ KB 연결 성공! ({len(test_results)}개 결과)")
                         else:
-                            st.error("❌ KB 연결 실패")
+                            st.warning("⚠️ KB 연결됨, 테스트 결과 없음")
                     except Exception as e:
-                        st.error(f"❌ 테스트 오류: {str(e)}")
+                        st.error(f"❌ KB 테스트 실패: {str(e)}")
         else:
-            st.button("KB 테스트", disabled=True, help="KB ID를 먼저 입력하세요")
-
-
-def _render_reset_button():
-    """대화 리셋 버튼"""
-    st.sidebar.header("🔄 Actions")
-    
-    if st.sidebar.button("대화 초기화", type="primary", help="모든 대화 기록을 삭제합니다"):
-        # 대화 관련 세션 상태 초기화
-        if 'messages' in st.session_state:
-            del st.session_state['messages']
-        if 'conversation_history' in st.session_state:
-            del st.session_state['conversation_history']
-        
-        st.success("✅ 대화가 초기화되었습니다!")
-        st.rerun()
-
-
-def _render_config_summary():
-    """현재 설정 요약 표시"""
-    st.sidebar.header("📊 Current Config")
-    
-    config = AgentConfig.from_streamlit_session()
-    
-    with st.sidebar.expander("설정 요약 보기"):
-        st.write("**모델 설정:**")
-        st.caption(f"• Orchestration: {_get_model_name(config.orchestration_model)}")
-        st.caption(f"• Action: {_get_model_name(config.action_model)}")
-        st.caption(f"• Observation: {_get_model_name(config.observation_model)}")
-        
-        st.write("**파라미터:**")
-        st.caption(f"• Temperature: {config.temperature}")
-        st.caption(f"• Max Tokens: {config.max_tokens:,}")
-        
-        st.write("**기능:**")
-        st.caption(f"• KB 검색: {'✅' if config.is_kb_enabled() else '❌'}")
-        st.caption(f"• 시스템 프롬프트: {'✅' if config.system_prompt else '❌'}")
+            st.caption("KB ID를 입력하면 테스트 가능")
 
 
 def _render_model_recommendations():
     """권장 모델 조합 표시"""
-    with st.sidebar.expander("💡 권장 모델 조합"):
+    with st.sidebar.expander("💡 권장 모델 조합", expanded=False):
         st.write("**🚀 고성능 조합**")
-        st.caption("• Orchestration: Claude Sonnet 4")
-        st.caption("• Action: Claude 3.7 Sonnet")
-        st.caption("• Observation: Claude 3.5 Sonnet v2")
+        st.write("• Orchestration: Claude Sonnet 4")
+        st.write("• Action: Claude 3.7 Sonnet")
+        st.write("• Observation: Claude 3.5 Sonnet v2")
         
-        if st.button("고성능 조합 적용", key="high_perf"):
-            st.session_state['orchestration_model'] = "us.anthropic.claude-sonnet-4-20250514-v1:0"
-            st.session_state['action_model'] = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
-            st.session_state['observation_model'] = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
-            st.success("✅ 고성능 조합이 적용되었습니다!")
-            st.rerun()
+        st.write("**⚖️ 균형 조합**")
+        st.write("• Orchestration: Claude 3.5 Haiku")
+        st.write("• Action: Nova Lite")
+        st.write("• Observation: Claude 3.5 Haiku")
         
-        st.write("**⚖️ 균형 조합 (권장)**")
-        st.caption("• Orchestration: Claude 3.5 Haiku")
-        st.caption("• Action: Nova Lite")
-        st.caption("• Observation: Claude 3.5 Haiku")
+        st.write("**💰 경제적 조합 (기본)**")
+        st.write("• Orchestration: Claude 3.5 Haiku")
+        st.write("• Action: Nova Micro")
+        st.write("• Observation: Claude 3.5 Haiku")
+
+
+def _render_reset_button():
+    """대화 리셋 버튼"""
+    st.sidebar.header("🔄 Reset")
+    
+    if st.sidebar.button("대화 기록 초기화", help="모든 대화 기록을 삭제합니다"):
+        if 'messages' in st.session_state:
+            st.session_state.messages = []
+        st.success("✅ 대화 기록이 초기화되었습니다!")
+        st.rerun()
+
+
+def _render_config_summary():
+    """설정 요약 표시"""
+    with st.sidebar.expander("📋 현재 설정 요약", expanded=False):
+        # 모델 정보
+        st.write("**🧠 선택된 모델:**")
+        st.write(f"• Orchestration: {_get_model_name(st.session_state.get('orchestration_model', ''))}")
+        st.write(f"• Action: {_get_model_name(st.session_state.get('action_model', ''))}")
+        st.write(f"• Observation: {_get_model_name(st.session_state.get('observation_model', ''))}")
         
-        if st.button("균형 조합 적용", key="balanced"):
-            st.session_state['orchestration_model'] = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-            st.session_state['action_model'] = "us.amazon.nova-lite-v1:0"
-            st.session_state['observation_model'] = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-            st.success("✅ 균형 조합이 적용되었습니다!")
-            st.rerun()
+        # KB 정보
+        kb_id = st.session_state.get('kb_id', '')
+        kb_desc = st.session_state.get('kb_description', '')
+        st.write("**🔍 Knowledge Base:**")
+        if kb_id:
+            st.write(f"• ID: {kb_id}")
+            if kb_desc:
+                st.write(f"• 설명: {kb_desc}")
+            else:
+                st.write("• 설명: 없음")
+        else:
+            st.write("• 비활성화")
         
-        st.write("**💰 경제적 조합**")
-        st.caption("• Orchestration: Claude 3.5 Haiku")
-        st.caption("• Action: Nova Micro")
-        st.caption("• Observation: Claude 3.5 Haiku")
+        # 파라미터 정보
+        st.write("**⚙️ 파라미터:**")
+        st.write(f"• Temperature: {st.session_state.get('temperature', 0.1)}")
+        st.write(f"• Max Tokens: {st.session_state.get('max_tokens', 4000):,}")
         
-        if st.button("경제적 조합 적용", key="cost_effective"):
-            st.session_state['orchestration_model'] = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-            st.session_state['action_model'] = "us.amazon.nova-micro-v1:0"
-            st.session_state['observation_model'] = "us.anthropic.claude-3-5-haiku-20241022-v1:0"
-            st.success("✅ 경제적 조합이 적용되었습니다!")
-            st.rerun()
+        # 시스템 프롬프트
+        system_prompt = st.session_state.get('system_prompt', '')
+        st.write("**📝 System Prompt:**")
+        if system_prompt:
+            st.write(f"• 설정됨 ({len(system_prompt)}자)")
+        else:
+            st.write("• 없음")

@@ -1,5 +1,6 @@
 """
-Streamlit 채팅 UI 컴포넌트
+수정된 Streamlit 채팅 UI 컴포넌트
+ReAct Agent 응답 구조와 호환성 개선
 """
 
 import streamlit as st
@@ -36,25 +37,33 @@ def _render_chat_history():
                 _render_assistant_message(message)
             else:
                 # User 메시지
-                st.write(message["content"])
+                content = message.get("content", "")
+                if content:
+                    st.write(content)
+                else:
+                    st.write("(메시지 내용 없음)")
 
 
 def _render_assistant_message(message: Dict[str, Any]):
     """Assistant 메시지 렌더링 (ReAct 단계 포함)"""
-    # 최종 답변 표시
-    st.write(message["content"])
+    # 최종 답변 표시 (안전한 방식)
+    content = message.get("content", message.get("final_answer", "응답을 생성할 수 없습니다."))
+    st.write(content)
     
     # ReAct 단계 정보가 있는 경우 표시
-    if "react_steps" in message and message["react_steps"]:
-        _render_react_steps(message["react_steps"])
+    react_steps = message.get("react_steps", message.get("steps", []))
+    if react_steps:
+        _render_react_steps(react_steps)
     
     # 실행 정보 표시
-    if "iterations_used" in message:
-        _render_execution_info(message)
+    _render_execution_info(message)
 
 
 def _render_react_steps(react_steps: List[Dict]):
     """ReAct 단계별 정보 표시"""
+    if not react_steps:
+        return
+        
     with st.expander("🔍 ReAct 단계별 상세 정보", expanded=False):
         for i, step in enumerate(react_steps):
             step_type = step.get("type", "Unknown")
@@ -88,21 +97,62 @@ def _render_react_steps(react_steps: List[Dict]):
                     model_name = _get_short_model_name(step["model"])
                     st.caption(f"Model: {model_name}")
                 
-                # 내용 표시 (길면 축약)
-                if len(step_content) > 200:
-                    st.markdown("**내용:**")
-                    st.text(step_content[:200] + "...")
+                # 파싱된 결과가 있으면 우선 표시
+                parsed_result = step.get("parsed_result", {})
+                if parsed_result and not parsed_result.get("error", False):
+                    _render_parsed_result(step_type, parsed_result)
+                
+                # 원본 내용 표시 (길면 축약) - expander 중첩 방지
+                if step_content and len(step_content) > 50:
+                    st.markdown("**원본 응답:**")
                     if len(step_content) > 500:
-                        st.caption(f"(전체 {len(step_content)}자 중 200자 표시)")
-                else:
-                    st.text(step_content)
+                        st.text(step_content[:500] + "...")
+                        st.caption(f"(전체 {len(step_content)}자 중 500자 표시)")
+                    else:
+                        st.text(step_content)
                 
                 # 검색 결과가 있는 경우 표시
-                if step_type == "Action" and "search_results" in step:
-                    _render_search_results(step["search_results"])
+                if step_type == "Action":
+                    search_results = step.get("search_results", parsed_result.get("search_results", []))
+                    if search_results:
+                        _render_search_results(search_results)
             
             if i < len(react_steps) - 1:
                 st.divider()
+
+
+def _render_parsed_result(step_type: str, parsed_result: Dict):
+    """파싱된 결과 표시"""
+    if step_type == "Orchestration":
+        intent = parsed_result.get("intent", "")
+        keywords = parsed_result.get("search_keywords", [])
+        confidence = parsed_result.get("confidence", 0)
+        
+        if intent:
+            st.markdown(f"**의도**: {intent}")
+        if keywords:
+            st.markdown(f"**검색 키워드**: {', '.join(keywords)}")
+        if confidence:
+            st.markdown(f"**신뢰도**: {confidence:.2f}")
+    
+    elif step_type == "Action":
+        search_type = parsed_result.get("search_type", "")
+        search_keywords = parsed_result.get("search_keywords", [])
+        
+        if search_type:
+            st.markdown(f"**검색 유형**: {search_type}")
+        if search_keywords:
+            st.markdown(f"**사용된 키워드**: {', '.join(search_keywords)}")
+    
+    elif step_type == "Observation":
+        is_final = parsed_result.get("is_final_answer", False)
+        final_answer = parsed_result.get("final_answer", "")
+        
+        if is_final:
+            st.success("✅ 최종 답변 생성 완료")
+        if final_answer and len(final_answer) > 100:
+            st.markdown("**생성된 답변 미리보기**:")
+            st.text(final_answer[:100] + "...")
 
 
 def _render_search_results(search_results: List[Dict]):
@@ -114,35 +164,52 @@ def _render_search_results(search_results: List[Dict]):
     st.caption(f"📚 검색 결과 ({len(search_results)}개)")
     
     for i, result in enumerate(search_results[:3]):  # 상위 3개만 표시
-        st.markdown(f"**결과 {i+1}** (점수: {result.get('score', 0):.3f})")
-        content = result.get('content', '')
-        if len(content) > 200:
-            st.text(content[:200] + "...")
-        else:
-            st.text(content)
-        if 'source' in result:
-            st.caption(f"출처: {result['source']}")
+        score = result.get('score', 0)
+        st.markdown(f"**결과 {i+1}** (점수: {score:.3f})")
+        
+        content = result.get('content', result.get('text', ''))
+        if content:
+            if len(content) > 200:
+                st.text(content[:200] + "...")
+            else:
+                st.text(content)
+        
+        source = result.get('source', result.get('metadata', {}).get('source', ''))
+        if source:
+            st.caption(f"출처: {source}")
+        
         if i < len(search_results[:3]) - 1:
             st.markdown("---")
 
 
 def _render_execution_info(message: Dict[str, Any]):
     """실행 정보 표시"""
-    iterations = message.get("iterations_used", 0)
+    # 메타데이터에서 정보 추출
+    metadata = message.get("metadata", {})
+    
+    iterations = metadata.get("total_iterations", message.get("iterations_used", 0))
     max_iterations = 5
     
-    # 진행률 표시
-    progress = iterations / max_iterations
-    st.progress(progress, text=f"ReAct 반복: {iterations}/{max_iterations}회")
+    if iterations > 0:
+        # 진행률 표시
+        progress = min(iterations / max_iterations, 1.0)
+        st.progress(progress, text=f"ReAct 반복: {iterations}/{max_iterations}회")
     
     # 안전장치 작동 여부 표시
-    if message.get("safety_triggered", False):
-        termination_reason = message.get("termination_reason", "알 수 없는 이유")
-        st.warning(f"⚠️ 안전장치 작동: {termination_reason}")
+    termination_reason = metadata.get("termination_reason", message.get("termination_reason", ""))
+    if "안전장치" in termination_reason or "중단" in termination_reason:
+        st.warning(f"⚠️ {termination_reason}")
+    elif termination_reason and termination_reason != "정상 완료":
+        st.info(f"ℹ️ {termination_reason}")
     
-    # 실행 시간 표시 (있는 경우)
-    if "execution_time" in message:
-        st.caption(f"⏱️ 실행 시간: {message['execution_time']:.2f}초")
+    # 실행 시간 표시
+    total_time = metadata.get("total_time", message.get("execution_time", 0))
+    if total_time > 0:
+        st.caption(f"⏱️ 실행 시간: {total_time:.2f}초")
+    
+    # 최적화 정보 표시
+    if metadata.get("optimization_level"):
+        st.caption(f"🚀 최적화 레벨: {metadata['optimization_level']}")
 
 
 def _handle_user_input(config: AgentConfig):
@@ -167,34 +234,31 @@ def _handle_user_input(config: AgentConfig):
 
 def _generate_assistant_response(user_input: str, config: AgentConfig):
     """Assistant 응답 생성 (실제 ReAct 엔진 사용)"""
-    from agents.react_agent import ReActAgent
-    
-    # ReAct Agent 초기화
-    react_agent = ReActAgent(config)
-    
-    # 대화 히스토리 가져오기 (현재 사용자 메시지 제외)
-    # 최근 10개 메시지에서 현재 입력은 제외하고 이전 대화만 포함
-    all_messages = st.session_state.messages
-    conversation_history = all_messages[-10:] if len(all_messages) > 0 else []
-    
-    # 대화 히스토리를 더 구조화된 형태로 변환
-    formatted_history = []
-    for msg in conversation_history:
-        if msg.get("role") in ["user", "assistant"]:
-            formatted_history.append({
-                "role": msg["role"],
-                "content": msg["content"][:500],  # 너무 긴 메시지는 축약
-                "timestamp": msg.get("timestamp", 0)
-            })
-    
-    with st.spinner("🤖 ReAct Agent가 분석하고 있습니다..."):
-        # 진행 상황 표시
-        progress_placeholder = st.empty()
-        status_placeholder = st.empty()
+    try:
+        from agents.react_agent import ReActAgent
         
-        # 실제 ReAct 엔진 실행
-        try:
-            # 진행 상황 시뮬레이션
+        # ReAct Agent 초기화
+        react_agent = ReActAgent(config)
+        
+        # 대화 히스토리 가져오기 (현재 사용자 메시지 제외)
+        all_messages = st.session_state.messages[:-1]  # 마지막 메시지(현재 입력) 제외
+        conversation_history = all_messages[-10:] if len(all_messages) > 0 else []
+        
+        # 대화 히스토리를 더 구조화된 형태로 변환
+        formatted_history = []
+        for msg in conversation_history:
+            if msg.get("role") in ["user", "assistant"] and msg.get("content"):
+                formatted_history.append({
+                    "role": msg["role"],
+                    "content": str(msg["content"])[:500],  # 문자열로 변환 후 축약
+                    "timestamp": msg.get("timestamp", 0)
+                })
+        
+        with st.spinner("🤖 ReAct Agent가 분석하고 있습니다..."):
+            # 진행 상황 표시
+            progress_placeholder = st.empty()
+            
+            # 실제 ReAct 엔진 실행
             progress_placeholder.progress(0.1, text="🎯 Orchestration: 쿼리 분석 중...")
             
             response = react_agent.run(user_input, formatted_history)
@@ -202,40 +266,63 @@ def _generate_assistant_response(user_input: str, config: AgentConfig):
             progress_placeholder.progress(1.0, text="✅ 완료!")
             time.sleep(0.5)  # 잠시 표시
             progress_placeholder.empty()
-            status_placeholder.empty()
+            
+            # 응답 구조 정규화
+            final_answer = response.get("final_answer", "응답을 생성할 수 없습니다.")
             
             # 응답 표시
-            st.write(response["content"])
+            st.write(final_answer)
             
             # ReAct 단계 정보 표시
-            if response.get("react_steps"):
-                _render_react_steps(response["react_steps"])
+            react_steps = response.get("steps", [])
+            if react_steps:
+                _render_react_steps(react_steps)
             
             # 실행 정보 표시
             _render_execution_info(response)
             
-            # 응답을 세션에 저장
-            st.session_state.messages.append(response)
-            
-        except Exception as e:
-            progress_placeholder.empty()
-            status_placeholder.empty()
-            
-            error_message = f"ReAct 엔진 실행 중 오류가 발생했습니다: {str(e)}"
-            st.error(error_message)
-            
-            # 에러 응답도 세션에 저장
-            error_response = {
+            # 응답을 세션에 저장 (정규화된 형태)
+            assistant_message = {
                 "role": "assistant",
-                "content": error_message,
+                "content": final_answer,
                 "timestamp": time.time(),
-                "error": True
+                "steps": react_steps,
+                "metadata": response.get("metadata", {}),
+                "error": False
             }
-            st.session_state.messages.append(error_response)
+            st.session_state.messages.append(assistant_message)
+            
+    except Exception as e:
+        # 에러 처리
+        error_message = f"ReAct 엔진 실행 중 오류가 발생했습니다: {str(e)}"
+        st.error(error_message)
+        
+        # 디버그 정보 표시
+        with st.expander("🔧 디버그 정보", expanded=False):
+            st.text(f"에러 타입: {type(e).__name__}")
+            st.text(f"에러 메시지: {str(e)}")
+            
+            # 스택 트레이스 표시
+            import traceback
+            st.text("스택 트레이스:")
+            st.code(traceback.format_exc())
+        
+        # 에러 응답도 세션에 저장
+        error_response = {
+            "role": "assistant",
+            "content": "죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해 주세요.",
+            "timestamp": time.time(),
+            "error": True,
+            "error_details": str(e)
+        }
+        st.session_state.messages.append(error_response)
 
 
 def _get_short_model_name(model_id: str) -> str:
     """모델 ID를 짧은 이름으로 변환"""
+    if not model_id:
+        return "Unknown"
+        
     if "claude-sonnet-4" in model_id:
         return "Claude 4"
     elif "claude-3-7-sonnet" in model_id:
@@ -249,4 +336,4 @@ def _get_short_model_name(model_id: str) -> str:
     elif "nova-micro" in model_id:
         return "Nova Micro"
     else:
-        return model_id.split(':')[0]
+        return model_id.split(':')[0] if ':' in model_id else model_id

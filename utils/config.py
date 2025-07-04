@@ -1,5 +1,5 @@
 """
-Agent 설정 관리 클래스
+KB 설명이 추가된 Agent 설정 관리 클래스
 """
 
 from dataclasses import dataclass
@@ -19,6 +19,7 @@ class AgentConfig:
     # 시스템 설정
     system_prompt: str
     kb_id: Optional[str]
+    kb_description: Optional[str]  # 새로 추가
     
     # 파라미터 설정
     temperature: float
@@ -37,6 +38,7 @@ class AgentConfig:
             observation_model=st.session_state.get('observation_model', 'us.anthropic.claude-3-5-haiku-20241022-v1:0'),
             system_prompt=st.session_state.get('system_prompt', ''),
             kb_id=st.session_state.get('kb_id'),
+            kb_description=st.session_state.get('kb_description', ''),  # 새로 추가
             temperature=st.session_state.get('temperature', 0.1),
             max_tokens=st.session_state.get('max_tokens', 4000)
         )
@@ -53,6 +55,14 @@ class AgentConfig:
     def is_kb_enabled(self) -> bool:
         """Knowledge Base 사용 여부"""
         return bool(self.kb_id and self.kb_id.strip())
+    
+    def has_kb_description(self) -> bool:
+        """KB 설명 존재 여부"""
+        return bool(self.kb_description and self.kb_description.strip())
+    
+    def get_kb_description(self) -> str:
+        """KB 설명 반환 (안전한 방식)"""
+        return self.kb_description.strip() if self.kb_description else ""
     
     def validate_model_selection(self) -> bool:
         """모델 선택 유효성 검증"""

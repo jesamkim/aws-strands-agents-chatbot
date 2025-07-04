@@ -1,6 +1,6 @@
 """
-Orchestration Agent 구현
-사용자 쿼리 분석 및 실행 계획 수립을 담당
+KB Priority-based Ultra-fast Orchestration Agent
+Maximum speed optimization with KB-first approach
 """
 
 import json
@@ -9,278 +9,254 @@ from utils.config import AgentConfig
 from utils.bedrock_client import BedrockClient
 
 
-class OrchestrationAgent:
+class OptimizedOrchestrationAgent:
     """
-    사용자 쿼리 분석 및 실행 계획 수립을 담당하는 Agent
+    KB Priority-based Ultra-fast Orchestration Agent
     
-    주요 역할:
-    - 사용자 쿼리 의도 파악
-    - Knowledge Base 검색 필요성 판단
-    - 검색 키워드 생성
-    - 실행 계획 수립
+    Key optimizations:
+    - KB_ID exists → KB search priority
+    - KB_ID missing → Direct model answer
+    - Ultra-minimal English prompts
+    - Korean output maintained
     """
     
     def __init__(self, config: AgentConfig):
-        """
-        Orchestration Agent 초기화
-        
-        Args:
-            config: Agent 설정
-        """
         self.config = config
         self.bedrock_client = BedrockClient()
     
-    def orchestrate(self, context: Dict, previous_steps: List) -> Dict:
-        """
-        사용자 쿼리 분석 및 계획 수립
-        
-        Args:
-            context: 실행 컨텍스트 (original_query, conversation_history 등)
-            previous_steps: 이전 단계 결과 (재시도 시 사용)
-            
-        Returns:
-            Orchestration 결과
-        """
+    def orchestrate(self, context: Dict) -> Dict:
+        """Ultra-fast KB-priority orchestration with conversation continuity"""
         try:
-            # 프롬프트 구성
-            prompt = self._build_orchestration_prompt(context, previous_steps)
+            original_query = context.get("original_query", "")
+            kb_id = context.get("kb_id", "")
+            kb_description = context.get("kb_description", "")
+            conversation_history = context.get("conversation_history", [])
             
-            # 모델 호출
-            response = self.bedrock_client.invoke_model(
-                model_id=self.config.orchestration_model,
-                prompt=prompt,
-                temperature=self.config.temperature,
-                max_tokens=self.config.get_max_tokens_for_model(self.config.orchestration_model),
-                system_prompt=self.config.system_prompt
-            )
+            # 1. 대화 연속성 질문 우선 처리 (KB_ID 존재 여부와 무관)
+            if self._is_conversation_continuation(original_query, conversation_history):
+                return self._create_direct_answer_result(original_query, "Conversation continuation")
             
-            # 응답 파싱
-            parsed_result = self._parse_orchestration_response(response)
+            # 2. 단순한 인사말 처리
+            if self._is_simple_greeting(original_query):
+                return self._create_direct_answer_result(original_query, "Simple greeting")
             
-            return {
-                "type": "Orchestration",
-                "model": self.config.orchestration_model,
-                "content": response,
-                "parsed_result": parsed_result
-            }
+            # 3. KB_ID 존재 여부에 따른 우선순위 결정
+            if not kb_id:
+                # KB_ID 없음 → 직접 답변 (대화 맥락 고려)
+                return self._create_direct_answer_result(original_query, "No KB_ID - direct answer with context")
             
-        except Exception as e:
-            return {
-                "type": "Orchestration",
-                "model": self.config.orchestration_model,
-                "content": f"Orchestration 오류: {str(e)}",
-                "parsed_result": {
-                    "intent": "오류 발생",
-                    "needs_kb_search": False,
-                    "search_keywords": [],
-                    "execution_plan": "오류로 인해 계획 수립 실패",
-                    "error": True
+            # 4. KB_ID 있음 → KB 검색 우선
+            # 재시도 키워드가 있는지 확인
+            retry_keywords = context.get("retry_keywords", [])
+            if retry_keywords:
+                print(f"   🔄 재시도 키워드 사용: {retry_keywords}")
+                return {
+                    "type": "Orchestration",
+                    "model": self.config.orchestration_model,
+                    "content": f"KB retry search with keywords: {retry_keywords}",
+                    "parsed_result": {
+                        "needs_kb_search": True,
+                        "search_keywords": retry_keywords,
+                        "intent": "KB retry search",
+                        "confidence": 0.9,
+                        "rule_applied": "kb_retry",
+                        "reasoning": f"Retry with different keywords: {context.get('retry_reason', 'Previous search insufficient')}",
+                        "context_applied": len(conversation_history) > 0
+                    },
+                    "error": False
                 }
-            }
-    
-    def _build_orchestration_prompt(self, context: Dict, previous_steps: List) -> str:
-        """Orchestration용 프롬프트 구성"""
-        
-        user_query = context.get("original_query", "")
-        conversation_history = context.get("conversation_history", [])
-        kb_enabled = self.config.is_kb_enabled()
-        
-        # 이전 시도 정보 (재시도인 경우)
-        previous_attempts = ""
-        if previous_steps:
-            failed_keywords = []
-            for step in previous_steps:
-                if step.get("type") == "Action" and step.get("search_results") is not None:
-                    if len(step.get("search_results", [])) == 0:
-                        # 이전에 실패한 키워드들 수집
-                        if "search_keywords" in step:
-                            failed_keywords.extend(step.get("search_keywords", []))
             
-            if failed_keywords:
-                previous_attempts = f"\n\n이전 시도에서 다음 키워드들로 검색했지만 결과가 없었습니다: {failed_keywords}\n다른 키워드를 시도해주세요."
-        
-        # 대화 히스토리 요약 (개선된 버전)
-        history_context = ""
-        if conversation_history:
-            history_context = "\n\n=== 이전 대화 맥락 ===\n"
+            # KB 검색 키워드 생성 (초고속)
+            keywords = self._generate_keywords_fast(original_query, kb_description, conversation_history)
             
-            # 최근 대화를 역순으로 정리 (최신이 위로)
-            recent_messages = conversation_history[-6:]  # 최근 6개 메시지 (3번의 대화)
-            
-            for i, msg in enumerate(recent_messages):
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                
-                # 역할에 따른 표시
-                if role == "user":
-                    history_context += f"사용자: {content}\n"
-                elif role == "assistant":
-                    # Assistant 응답은 너무 길 수 있으므로 요약
-                    if len(content) > 150:
-                        history_context += f"AI: {content[:150]}...\n"
-                    else:
-                        history_context += f"AI: {content}\n"
-            
-            history_context += "=== 현재 질문 ===\n"
-        
-        prompt = f"""당신은 사용자의 질문을 분석하고 실행 계획을 수립하는 Orchestration Agent입니다.
-
-{history_context}
-사용자 질문: {user_query}
-{previous_attempts}
-
-Knowledge Base 사용 가능: {'예' if kb_enabled else '아니오'}
-
-**중요**: 위의 대화 맥락을 반드시 고려하여 사용자의 현재 질문을 이해하세요.
-- 사용자가 "다음은?", "그럼?", "또는?" 같은 불완전한 질문을 했다면, 이전 대화의 맥락에서 무엇을 묻는지 파악하세요.
-- 이전 대화에서 언급된 주제나 시퀀스가 있다면 그것을 고려하세요.
-- 대화의 연속성을 유지하여 자연스러운 응답이 가능하도록 하세요.
-
-다음 작업을 수행해주세요:
-
-1. 이전 대화 맥락을 고려하여 사용자의 질문 의도를 파악하세요
-2. Knowledge Base 검색이 필요한지 판단하세요
-3. 검색이 필요하다면 효과적인 검색 키워드를 생성하세요
-4. 실행 계획을 수립하세요
-
-응답은 반드시 다음 JSON 형식으로 해주세요:
-
-{{
-    "intent": "사용자 질문의 의도 (이전 대화 맥락 포함하여 구체적으로)",
-    "needs_kb_search": true 또는 false,
-    "search_keywords": ["키워드1", "키워드2", "키워드3"],
-    "execution_plan": "구체적인 실행 계획 설명",
-    "confidence": 0.0~1.0 사이의 신뢰도 점수,
-    "context_understanding": "이전 대화 맥락에 대한 이해 요약"
-}}
-
-검색 키워드 생성 가이드라인:
-- 이전 대화에서 언급된 주제를 키워드에 포함하세요
-- 핵심 개념과 관련 용어를 포함
-- 너무 일반적이지 않고 구체적인 키워드 사용
-- 동의어나 유사 표현도 고려
-- 최대 5개까지 생성
-- 한국어와 영어 키워드 모두 고려
-
-Knowledge Base가 사용 불가능한 경우 needs_kb_search는 false로 설정하세요."""
-
-        return prompt
-    
-    def _parse_orchestration_response(self, response: str) -> Dict:
-        """Orchestration 응답 파싱"""
-        try:
-            # JSON 추출 시도
-            response_clean = response.strip()
-            
-            # JSON 블록 찾기 (여러 패턴 시도)
-            json_str = None
-            
-            # 패턴 1: ```json 블록
-            if "```json" in response_clean:
-                start = response_clean.find("```json") + 7
-                end = response_clean.find("```", start)
-                json_str = response_clean[start:end].strip()
-            
-            # 패턴 2: 단순 중괄호 블록
-            elif "{" in response_clean and "}" in response_clean:
-                start = response_clean.find("{")
-                end = response_clean.rfind("}") + 1
-                json_str = response_clean[start:end]
-            
-            # 패턴 3: 전체가 JSON인 경우
-            else:
-                json_str = response_clean
-            
-            if not json_str:
-                raise ValueError("JSON 형식을 찾을 수 없습니다")
-            
-            # JSON 제어 문자 정리
-            json_str = json_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-            # 연속된 공백을 하나로 정리
-            import re
-            json_str = re.sub(r'\s+', ' ', json_str)
-            
-            # JSON 파싱 시도
-            parsed = json.loads(json_str)
-            
-            # 필수 필드 검증 및 기본값 설정
-            result = {
-                "intent": parsed.get("intent", "알 수 없는 의도"),
-                "needs_kb_search": bool(parsed.get("needs_kb_search", False)),
-                "search_keywords": parsed.get("search_keywords", []),
-                "execution_plan": parsed.get("execution_plan", "계획 없음"),
-                "confidence": float(parsed.get("confidence", 0.5)),
+            return {
+                "type": "Orchestration",
+                "model": self.config.orchestration_model,
+                "content": f"KB search with keywords: {keywords}",
+                "parsed_result": {
+                    "needs_kb_search": True,
+                    "search_keywords": keywords,
+                    "intent": "KB search priority",
+                    "confidence": 0.95,
+                    "rule_applied": "kb_priority",
+                    "reasoning": "KB_ID exists - KB search priority",
+                    "context_applied": len(conversation_history) > 0
+                },
                 "error": False
             }
             
-            # KB가 비활성화된 경우 강제로 검색 비활성화
-            if not self.config.is_kb_enabled():
-                result["needs_kb_search"] = False
-                result["search_keywords"] = []
-            
-            # 검색 키워드 정리 (빈 문자열 제거, 최대 5개)
-            if result["search_keywords"]:
-                result["search_keywords"] = [
-                    kw.strip() for kw in result["search_keywords"] 
-                    if kw and kw.strip()
-                ][:5]
-            
-            return result
-            
-        except (json.JSONDecodeError, ValueError, KeyError, TypeError) as e:
-            # JSON 파싱 실패 시 폴백 로직
-            print(f"JSON 파싱 실패: {str(e)}")
-            print(f"원본 응답: {response[:200]}...")
-            return self._fallback_parsing(response)
+        except Exception as e:
+            return self._create_error_result(str(e))
     
-    def _fallback_parsing(self, response: str) -> Dict:
-        """JSON 파싱 실패 시 폴백 로직"""
+    def _generate_keywords_fast(self, query: str, kb_description: str, history: List[Dict]) -> List[str]:
+        """Ultra-fast keyword generation with minimal prompt"""
+        try:
+            # 이전 대화 맥락 확인
+            context_info = ""
+            if history and len(history) > 0:
+                last_user_msg = ""
+                for msg in reversed(history):
+                    if msg.get("role") == "user":
+                        last_user_msg = msg.get("content", "")[:100]
+                        break
+                if last_user_msg:
+                    context_info = f"Previous: {last_user_msg}"
+            
+            # KB 설명 정보
+            kb_info = f"KB: {kb_description[:100]}" if kb_description else "KB: General knowledge base"
+            
+            # 초간단 영어 프롬프트 (토큰 최소화)
+            prompt = f"""Query: {query}
+{kb_info}
+{context_info}
+
+Generate 3 Korean search keywords for KB search.
+Output format: ["keyword1", "keyword2", "keyword3"]"""
+            
+            response = self.bedrock_client.invoke_model(
+                model_id=self.config.orchestration_model,
+                prompt=prompt,
+                temperature=0.0,  # 일관성 최대화
+                max_tokens=100,   # 최소 토큰
+                system_prompt="You are a keyword extraction expert. Generate precise Korean search keywords in JSON array format."
+            )
+            
+            # JSON 파싱 시도
+            try:
+                import re
+                # JSON 배열 패턴 찾기
+                json_match = re.search(r'\[.*?\]', response)
+                if json_match:
+                    keywords_json = json_match.group()
+                    keywords = json.loads(keywords_json)
+                    if isinstance(keywords, list) and len(keywords) > 0:
+                        return keywords[:3]  # 최대 3개
+            except:
+                pass
+            
+            # JSON 파싱 실패 시 폴백
+            return self._extract_keywords_fallback(query)
+            
+        except Exception as e:
+            return self._extract_keywords_fallback(query)
+    
+    def _extract_keywords_fallback(self, query: str) -> List[str]:
+        """키워드 추출 폴백 로직"""
+        # 간단한 키워드 추출
+        import re
         
-        # 기본 응답 구조
-        result = {
-            "intent": "파싱 실패",
-            "needs_kb_search": self.config.is_kb_enabled(),
-            "search_keywords": [],
-            "execution_plan": "응답 파싱에 실패했지만 기본 검색을 시도합니다",
-            "confidence": 0.3,
+        # 한글 단어 추출
+        korean_words = re.findall(r'[가-힣]+', query)
+        
+        # 영어 단어 추출
+        english_words = re.findall(r'[a-zA-Z]+', query)
+        
+        # 숫자 포함 단어 추출
+        number_words = re.findall(r'[가-힣]*\d+[가-힣]*', query)
+        
+        all_keywords = korean_words + english_words + number_words
+        
+        # 중복 제거 및 길이 필터링
+        unique_keywords = []
+        for keyword in all_keywords:
+            if len(keyword) >= 2 and keyword not in unique_keywords:
+                unique_keywords.append(keyword)
+        
+        # 최대 3개 반환
+        return unique_keywords[:3] if unique_keywords else [query[:20]]
+    
+    def _is_conversation_continuation(self, query: str, history: List[Dict]) -> bool:
+        """대화 연속성 질문인지 확인"""
+        if not history or len(history) == 0:
+            return False
+        
+        # 연속성 표현들
+        continuation_patterns = [
+            "다음은", "그럼", "그러면", "또는", "아니면", "그리고", "그런데",
+            "그래서", "그렇다면", "그럼에도", "하지만", "그런데도", "그래도",
+            "계속", "이어서", "추가로", "더", "또", "그 외에", "다른",
+            "next", "then", "also", "more", "continue", "what about", "how about"
+        ]
+        
+        query_lower = query.lower().strip()
+        
+        # 짧은 연속성 질문 (10자 이하)
+        if len(query.strip()) <= 10:
+            for pattern in continuation_patterns:
+                if pattern in query_lower:
+                    return True
+        
+        # 질문이 짧고 이전 대화가 있는 경우
+        if len(query.strip()) <= 20 and len(history) > 0:
+            # 의문사로 시작하는 짧은 질문
+            question_starters = ["뭐", "무엇", "어떤", "어떻게", "왜", "언제", "어디", "누가", "얼마"]
+            for starter in question_starters:
+                if query.strip().startswith(starter):
+                    return True
+        
+        return False
+    
+    def _is_simple_greeting(self, query: str) -> bool:
+        """간단한 인사말 확인"""
+        greetings = ["안녕", "hello", "hi", "안녕하세요", "안녕하십니까"]
+        query_lower = query.lower().strip()
+        return any(greeting in query_lower for greeting in greetings) and len(query.strip()) < 20
+    
+    def _create_direct_answer_result(self, query: str, reason: str) -> Dict:
+        """직접 답변 결과 생성 (대화 맥락 포함)"""
+        return {
+            "type": "Orchestration",
+            "model": self.config.orchestration_model,
+            "content": f"Direct answer required. Reason: {reason}",
+            "parsed_result": {
+                "needs_kb_search": False,
+                "search_keywords": [],
+                "intent": "Direct answer with context",
+                "confidence": 0.9,
+                "rule_applied": "direct_answer",
+                "reasoning": reason,
+                "context_applied": True,  # 대화 맥락 적용 표시
+                "requires_conversation_context": True  # 대화 맥락 필요 표시
+            },
+            "error": False
+        }
+    
+    def _create_error_result(self, error_msg: str) -> Dict:
+        """에러 결과 생성"""
+        return {
+            "type": "Orchestration",
+            "model": self.config.orchestration_model,
+            "content": f"Orchestration error: {error_msg}",
+            "parsed_result": {
+                "needs_kb_search": False,
+                "search_keywords": [],
+                "intent": "Error occurred",
+                "confidence": 0.0,
+                "rule_applied": "error",
+                "reasoning": f"Error: {error_msg}",
+                "context_applied": False
+            },
             "error": True
         }
-        
-        # 응답에서 키워드 추출 시도
-        if self.config.is_kb_enabled():
-            # 간단한 키워드 추출 로직
-            response_lower = response.lower()
-            
-            # 일반적인 키워드 패턴 찾기
-            common_patterns = [
-                "절차", "방법", "과정", "규정", "정책", "지침",
-                "투자", "계약", "승인", "품의", "결재",
-                "회사", "조직", "부서"
-            ]
-            
-            found_keywords = []
-            for pattern in common_patterns:
-                if pattern in response or pattern in response_lower:
-                    found_keywords.append(pattern)
-            
-            result["search_keywords"] = found_keywords[:3]  # 최대 3개
-        
-        return result
     
     def get_model_name(self) -> str:
         """현재 사용 중인 모델명 반환"""
         model_id = self.config.orchestration_model
         if "claude-sonnet-4" in model_id:
-            return "Claude 4"
+            return "Claude 4 (KB-Priority)"
         elif "claude-3-7-sonnet" in model_id:
-            return "Claude 3.7 Sonnet"
+            return "Claude 3.7 Sonnet (KB-Priority)"
         elif "claude-3-5-sonnet" in model_id:
-            return "Claude 3.5 Sonnet"
+            return "Claude 3.5 Sonnet (KB-Priority)"
         elif "claude-3-5-haiku" in model_id:
-            return "Claude 3.5 Haiku"
+            return "Claude 3.5 Haiku (KB-Priority)"
         elif "nova-lite" in model_id:
-            return "Nova Lite"
+            return "Nova Lite (KB-Priority)"
         elif "nova-micro" in model_id:
-            return "Nova Micro"
+            return "Nova Micro (KB-Priority)"
         else:
-            return model_id.split(':')[0]
+            return f"{model_id.split(':')[0]} (KB-Priority)"
+
+
+# 기존 코드와의 호환성을 위한 별칭
+OrchestrationAgent = OptimizedOrchestrationAgent
